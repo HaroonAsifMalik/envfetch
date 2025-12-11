@@ -1,0 +1,111 @@
+{
+    "project": {
+      "description": "TaskMaster Project Services",
+  
+      "commands": {
+        "run_backend": "python manage.py runserver",
+        "run_frontend": "npm run start",
+        "migrate": "python manage.py migrate",
+        "tests": "pytest tests/",
+        "celery": "celery -A taskmaster worker --loglevel=info",
+        "docker_build": "docker-compose build"
+      },
+  
+      "notes": [
+        "Redis must be running for Celery tasks.",
+        "PostgreSQL must be available locally or in dev/prod."
+      ],
+  
+      "pending_tasks": {
+        "features": [
+          "Add notification system",
+          "Integrate third-party OAuth"
+        ],
+        "bugs": [
+          "Fix occasional Celery timeout"
+        ]
+      }
+    },
+  
+    "local": {
+      "db": {
+        "DATABASE_URL": "postgres://user:password@localhost:5432/taskmaster_db"
+      },
+      "elastic": {
+        "ELASTIC_SEARCH_API_ADMIN_CREDENTIALS": "admin:password",
+        "ELASTIC_SEARCH_API_SEARCH_CREDENTIALS": "search_user:password",
+        "ELASTIC_SEARCH_API_URL": "http://localhost:9200"
+      },
+      "aws": {
+        "AWS_ACCESS_KEY_ID": "LOCAL_KEY",
+        "AWS_SECRET_ACCESS_KEY": "LOCAL_SECRET",
+        "AWS_DEFAULT_REGION": "us-west-1",
+        "AWS_S3_REGION_NAME": "us-west-1",
+        "AWS_STORAGE_BUCKET_NAME": "local-bucket",
+        "AWS_PRODUCTION_STORAGE_BUCKET_NAME": "local-prod-bucket"
+      },
+      "redis": {
+        "REDIS_HOST": "localhost",
+        "REDIS_PORT": "6379",
+        "REDIS_PASSWORD": "",
+        "REDIS_DB": "0",
+        "REDIS_SSL": "false"
+      }
+    },
+  
+    "dev": {
+      "db": {
+        "DATABASE_URL": "postgres://dev_user:dev_pass@dev-host:5432/dev_taskmaster_db"
+      },
+      "elastic": {
+        "ELASTIC_SEARCH_API_ADMIN_CREDENTIALS": "dev_admin:dev_pass",
+        "ELASTIC_SEARCH_API_SEARCH_CREDENTIALS": "dev_search:dev_pass",
+        "ELASTIC_SEARCH_API_URL": "http://dev-elastic:9200"
+      },
+      "aws": {
+        "AWS_ACCESS_KEY_ID": "DEV_KEY",
+        "AWS_SECRET_ACCESS_KEY": "DEV_SECRET",
+        "AWS_DEFAULT_REGION": "us-west-1",
+        "AWS_S3_REGION_NAME": "us-west-1",
+        "AWS_STORAGE_BUCKET_NAME": "dev-bucket",
+        "AWS_PRODUCTION_STORAGE_BUCKET_NAME": "dev-prod-bucket"
+      },
+      "redis": {
+        "REDIS_HOST": "dev-redis-host",
+        "REDIS_PORT": "6379",
+        "REDIS_PASSWORD": "dev_pass",
+        "REDIS_DB": "1",
+        "REDIS_SSL": "false"
+      }
+    },
+  
+    "prod": {
+      "db": {
+        "DATABASE_URL": "postgres://prod_user:prod_pass@prod-host:5432/prod_taskmaster_db"
+      },
+      "elastic": {
+        "ELASTIC_SEARCH_API_ADMIN_CREDENTIALS": "prod_admin:prod_pass",
+        "ELASTIC_SEARCH_API_SEARCH_CREDENTIALS": "prod_search:prod_pass",
+        "ELASTIC_SEARCH_API_URL": "https://prod-elastic.example.com:9200"
+      },
+      "aws": {
+        "AWS_ACCESS_KEY_ID": "PROD_KEY",
+        "AWS_SECRET_ACCESS_KEY": "PROD_SECRET",
+        "AWS_DEFAULT_REGION": "us-west-1",
+        "AWS_S3_REGION_NAME": "us-west-1",
+        "AWS_STORAGE_BUCKET_NAME": "prod-bucket",
+        "AWS_PRODUCTION_STORAGE_BUCKET_NAME": "prod-prod-bucket"
+      },
+      "redis": {
+        "REDIS_HOST": "prod-redis-host",
+        "REDIS_PORT": "6379",
+        "REDIS_PASSWORD": "prod_pass",
+        "REDIS_DB": "0",
+        "REDIS_SSL": "true",
+        "REDIS_SSL_CERT": "/path/to/cert.pem",
+        "REDIS_SSL_KEY": "/path/to/key.pem",
+        "REDIS_SSL_CA": "/path/to/ca.pem"
+      }
+    }
+  }
+  
