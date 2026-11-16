@@ -1,19 +1,123 @@
+"""Local JSON storage for EnvFetch.
+
+One JSON file per project lives in the data directory (``projects/`` by default,
+or wherever ``ENVFETCH_DATA_DIR`` / ``--data-dir`` points). Both the CLI and the
+web UI go through this module, so there is exactly one place that touches disk.
+"""
 import json
+import os
+import re
+import shutil
+import tempfile
+import time
 from pathlib import Path
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-PROJECTS_DIR = BASE_DIR / "projects"
+PROJECTS_DIR = Path(os.environ.get("ENVFETCH_DATA_DIR") or (BASE_DIR / "projects")).expanduser()
+
+NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
+BACKUP_EVERY_SECONDS = 300
+BACKUPS_KEEP = 10
 
 
+# --------------------------------------------------------------------------- #
+# Paths & names
+# --------------------------------------------------------------------------- #
+def set_data_dir(path):
+    """Point EnvFetch at a different data directory (e.g. a private repo)."""
+    global PROJECTS_DIR
+    PROJECTS_DIR = Path(path).expanduser().resolve()
+
+
+def is_valid_name(name):
+    return bool(NAME_RE.match(name or ""))
+
+
+def project_file(name):
+    return PROJECTS_DIR / f"{name.lower()}.json"
+
+
+def list_projects():
+    if not PROJECTS_DIR.is_dir():
+        return []
+    return sorted(p.stem for p in PROJECTS_DIR.glob("*.json") if is_valid_name(p.stem))
+
+
+def file_rev(name):
+    """A cheap version token: changes whenever the file is rewritten."""
+    return str(project_file(name).stat().st_mtime_ns)
+
+
+# --------------------------------------------------------------------------- #
+# Read / write
+# --------------------------------------------------------------------------- #
+def read_project(name):
+    """Return the parsed project dict. Raises FileNotFoundError / ValueError."""
+    with open(project_file(name), "r", encoding="utf-8") as f:
+        data = json.load(f)
+    if not isinstance(data, dict):
+        raise ValueError("a project file must contain a JSON object")
+    return data
+
+
+def _backup(path):
+    backup_dir = PROJECTS_DIR / ".backups"
+    backup_dir.mkdir(exist_ok=True)
+    existing = sorted(backup_dir.glob(f"{path.stem}.*.json"))
+    if existing and time.time() - existing[-1].stat().st_mtime < BACKUP_EVERY_SECONDS:
+        return
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    shutil.copy2(path, backup_dir / f"{path.stem}.{stamp}.json")
+    for old in sorted(backup_dir.glob(f"{path.stem}.*.json"))[:-BACKUPS_KEEP]:
+        old.unlink()
+
+
+def write_project(name, data):
+    """Atomically write a project file (and keep a rolling backup)."""
+    path = project_file(name)
+    PROJECTS_DIR.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        _backup(path)
+
+    fd, tmp = tempfile.mkstemp(dir=PROJECTS_DIR, prefix=f".{path.stem}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+            f.write("\n")
+        os.replace(tmp, path)
+    except BaseException:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+        raise
+
+
+def build_template(name, description=""):
+    return {
+        "project": {
+            "description": description or f"{name} project",
+            "commands": {},
+            "notes": [],
+            "links": [],
+            "tasks": [],
+        },
+        "local": {"urls": {}},
+        "dev": {"db": {}, "urls": {}},
+        "prod": {"db": {}, "urls": {}},
+    }
+
+
+# --------------------------------------------------------------------------- #
+# CLI helpers (these print, the web server uses the functions above)
+# --------------------------------------------------------------------------- #
 def load_project_file(project: str):
-    project_file = PROJECTS_DIR / f"{project.lower()}.json"
+    project_file_path = project_file(project)
 
-    if not project_file.exists():
-        print(f"\n❌ Project file not found: {project_file.name}")
+    if not project_file_path.exists():
+        print(f"\n❌ Project file not found: {project_file_path.name}")
         return None
 
-    with open(project_file, "r") as f:
+    with open(project_file_path, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -75,47 +179,30 @@ def diff_envs(project: str, env1: str, env2: str):
 
     if missing_in_env2:
         print(f"\nMissing in {env2}:")
-        for k in missing_in_env2:
+        for k in sorted(missing_in_env2):
             print(f"- {k}")
 
     if missing_in_env1:
         print(f"\nMissing in {env1}:")
-        for k in missing_in_env1:
+        for k in sorted(missing_in_env1):
             print(f"- {k}")
 
-    for service in common:
+    for service in sorted(common):
         if data[env1][service] != data[env2][service]:
             print(f"\nDifferent values in '{service}'")
 
 
 def create_project_template(name: str):
-    file = PROJECTS_DIR / f"{name.lower()}.json"
+    name = name.lower()
+    if not is_valid_name(name):
+        print("\n❌ Use letters, numbers, '-' or '_' for the project name (max 64 chars)")
+        return
+
+    file = project_file(name)
 
     if file.exists():
         print("\n❌ Project already exists")
         return
 
-    template = {
-        "project": {
-            "description": f"{name} project",
-            "commands": {},
-            "notes": []
-        },
-        "dev": {
-            "db": {},
-            "elastic": {},
-            "urls": {}
-        },
-        "prod": {
-            "db": {},
-            "elastic": {},
-            "urls": {}
-        }
-    }
-
-    PROJECTS_DIR.mkdir(exist_ok=True)
-
-    with open(file, "w") as f:
-        json.dump(template, f, indent=2)
-
+    write_project(name, build_template(name))
     print(f"\n✅ Project '{name}' created successfully at: {file}")

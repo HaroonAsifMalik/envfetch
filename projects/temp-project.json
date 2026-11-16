@@ -1,135 +1,208 @@
 {
-    "project": {
-      "description": "Example Project Services",
-  
-      "commands": {
-        "run_backend": "python manage.py runserver",
-        "run_frontend": "npm run dev",
-        "migrate": "python manage.py migrate",
-        "tests": "pytest",
-        "sitemap": "python manage.py runcelerytask sync_and_upload_sitemap_to_s3 --sync"
+  "project": {
+    "description": "Example Project Services",
+    "commands": {
+      "run_backend": "python manage.py runserver",
+      "run_frontend": "npm run dev",
+      "migrate": "python manage.py migrate",
+      "tests": "pytest",
+      "sitemap": "python manage.py runcelerytask sync_and_upload_sitemap_to_s3 --sync"
+    },
+    "notes": [
+      "ElasticSearch must be running locally or in dev/prod environment."
+    ],
+    "links": [
+      {
+        "title": "Staging admin",
+        "url": "https://staging-admin.example.com"
       },
-  
-      "notes": [
-        "ElasticSearch must be running locally or in dev/prod environment."
-      ],
-  
-      "pending_tasks": {
-        "example": [
-          "Create alert dashboard in Grafana"
+      {
+        "title": "Runbook (Notion)",
+        "url": "https://www.notion.so/example-runbook"
+      }
+    ],
+    "tasks": [
+      {
+        "id": "t-001",
+        "title": "Create alert dashboard in Grafana",
+        "status": "todo",
+        "priority": "medium",
+        "category": "example",
+        "due": "2026-11-20",
+        "remind_at": "",
+        "notes": "",
+        "links": [],
+        "steps": [
+          {
+            "text": "Pick the 4 golden-signal panels",
+            "done": false
+          },
+          {
+            "text": "Wire alerts to Slack",
+            "done": false
+          }
         ],
-        "sitemap": [
-          "Remove existing category sitemap"
-        ]
+        "impact": "",
+        "challenges": "",
+        "solution": "",
+        "created": "2026-11-17T01:49:45",
+        "updated": "2026-11-17T01:49:45",
+        "completed_on": ""
+      },
+      {
+        "id": "t-002",
+        "title": "Remove existing category sitemap",
+        "status": "todo",
+        "priority": "low",
+        "category": "sitemap",
+        "due": "",
+        "remind_at": "",
+        "notes": "",
+        "links": [],
+        "steps": [],
+        "impact": "",
+        "challenges": "",
+        "solution": "",
+        "created": "2026-11-17T01:49:45",
+        "updated": "2026-11-17T01:49:45",
+        "completed_on": ""
+      },
+      {
+        "id": "t-003",
+        "title": "Fix sitemap upload timing out on S3",
+        "status": "review",
+        "priority": "urgent",
+        "category": "bug",
+        "due": "2026-11-16",
+        "remind_at": "",
+        "notes": "runcelerytask sync_and_upload_sitemap_to_s3 --sync fails after ~60s on large indexes.",
+        "links": [],
+        "steps": [
+          {
+            "text": "Reproduce locally with 50k URLs",
+            "done": true
+          },
+          {
+            "text": "Stream the upload instead of buffering",
+            "done": true
+          },
+          {
+            "text": "Verify on staging",
+            "done": false
+          }
+        ],
+        "impact": "",
+        "challenges": "",
+        "solution": "",
+        "created": "2026-11-17T01:49:45",
+        "updated": "2026-11-17T01:49:45",
+        "completed_on": ""
       }
+    ]
+  },
+  "local": {
+    "db": {
+      "DATABASE_URL": "postgres://user:password@localhost:5432/example_db"
     },
-  
-    "local": {
-      "db": {
-        "DATABASE_URL": "postgres://user:password@localhost:5432/example_db"
-      },
-      "elastic": {
-        "ELASTIC_SEARCH_API_ADMIN_CREDENTIALS": "admin:password",
-        "ELASTIC_SEARCH_API_SEARCH_CREDENTIALS": "search_user:password",
-        "ELASTIC_SEARCH_API_URL": "http://localhost:9200"
-      },
-      "search-index": {
-        "STRAT_SEARCH_INDEX_NAME_ADS": "ads_index",
-        "STRAT_SEARCH_INDEX_NAME_AGENCIES": "agencies_index",
-        "STRAT_SEARCH_INDEX_NAME_LOCATIONS": "locations_index",
-        "STRAT_SEARCH_INDEX_NAME_FREQUENT_SEARCH_QUERIES": "frequent_queries_index",
-        "STRAT_SEARCH_INDEX_NAME_URL_SPECIFIC_SEO": "url_seo_index"
-      },
-      "aws": {
-        "AWS_ACCESS_KEY_ID": "EXAMPLE_KEY_ID",
-        "AWS_SECRET_ACCESS_KEY": "EXAMPLE_SECRET",
-        "AWS_DEFAULT_REGION": "us-east-1",
-        "AWS_S3_REGION_NAME": "us-east-1",
-        "AWS_STORAGE_BUCKET_NAME": "example-bucket",
-        "AWS_PRODUCTION_STORAGE_BUCKET_NAME": "example-prod-bucket"
-      },
-      "redis": {
-        "REDIS_HOST": "localhost",
-        "REDIS_PORT": "6379",
-        "REDIS_PASSWORD": "",
-        "REDIS_DB": "0",
-        "REDIS_SSL": "false",
-        "REDIS_SSL_CERT": "",
-        "REDIS_SSL_KEY": "",
-        "REDIS_SSL_CA": ""
-      }
+    "elastic": {
+      "ELASTIC_SEARCH_API_ADMIN_CREDENTIALS": "admin:password",
+      "ELASTIC_SEARCH_API_SEARCH_CREDENTIALS": "search_user:password",
+      "ELASTIC_SEARCH_API_URL": "http://localhost:9200"
     },
-  
-    "dev": {
-      "db": {
-        "DATABASE_URL": "postgres://dev_user:dev_pass@dev-host:5432/dev_db"
-      },
-      "elastic": {
-        "ELASTIC_SEARCH_API_ADMIN_CREDENTIALS": "dev_admin:dev_pass",
-        "ELASTIC_SEARCH_API_SEARCH_CREDENTIALS": "dev_search:dev_pass",
-        "ELASTIC_SEARCH_API_URL": "http://dev-elastic:9200"
-      },
-      "search-index": {
-        "STRAT_SEARCH_INDEX_NAME_ADS": "dev_ads_index",
-        "STRAT_SEARCH_INDEX_NAME_AGENCIES": "dev_agencies_index",
-        "STRAT_SEARCH_INDEX_NAME_LOCATIONS": "dev_locations_index",
-        "STRAT_SEARCH_INDEX_NAME_FREQUENT_SEARCH_QUERIES": "dev_frequent_queries_index",
-        "STRAT_SEARCH_INDEX_NAME_URL_SPECIFIC_SEO": "dev_url_seo_index"
-      },
-      "aws": {
-        "AWS_ACCESS_KEY_ID": "DEV_KEY_ID",
-        "AWS_SECRET_ACCESS_KEY": "DEV_SECRET",
-        "AWS_DEFAULT_REGION": "us-east-1",
-        "AWS_S3_REGION_NAME": "us-east-1",
-        "AWS_STORAGE_BUCKET_NAME": "dev-bucket",
-        "AWS_PRODUCTION_STORAGE_BUCKET_NAME": "dev-prod-bucket"
-      },
-      "redis": {
-        "REDIS_HOST": "dev-redis-host",
-        "REDIS_PORT": "6379",
-        "REDIS_PASSWORD": "dev_pass",
-        "REDIS_DB": "1",
-        "REDIS_SSL": "false",
-        "REDIS_SSL_CERT": "",
-        "REDIS_SSL_KEY": "",
-        "REDIS_SSL_CA": ""
-      }
+    "search-index": {
+      "STRAT_SEARCH_INDEX_NAME_ADS": "ads_index",
+      "STRAT_SEARCH_INDEX_NAME_AGENCIES": "agencies_index",
+      "STRAT_SEARCH_INDEX_NAME_LOCATIONS": "locations_index",
+      "STRAT_SEARCH_INDEX_NAME_FREQUENT_SEARCH_QUERIES": "frequent_queries_index",
+      "STRAT_SEARCH_INDEX_NAME_URL_SPECIFIC_SEO": "url_seo_index"
     },
-  
-    "prod": {
-      "db": {
-        "DATABASE_URL": "postgres://prod_user:prod_pass@prod-host:5432/prod_db"
-      },
-      "elastic": {
-        "ELASTIC_SEARCH_API_ADMIN_CREDENTIALS": "prod_admin:prod_pass",
-        "ELASTIC_SEARCH_API_SEARCH_CREDENTIALS": "prod_search:prod_pass",
-        "ELASTIC_SEARCH_API_URL": "https://prod-elastic.example.com:9200"
-      },
-      "search-index": {
-        "STRAT_SEARCH_INDEX_NAME_ADS": "prod_ads_index",
-        "STRAT_SEARCH_INDEX_NAME_AGENCIES": "prod_agencies_index",
-        "STRAT_SEARCH_INDEX_NAME_LOCATIONS": "prod_locations_index",
-        "STRAT_SEARCH_INDEX_NAME_FREQUENT_SEARCH_QUERIES": "prod_frequent_queries_index",
-        "STRAT_SEARCH_INDEX_NAME_URL_SPECIFIC_SEO": "prod_url_seo_index"
-      },
-      "aws": {
-        "AWS_ACCESS_KEY_ID": "PROD_KEY_ID",
-        "AWS_SECRET_ACCESS_KEY": "PROD_SECRET",
-        "AWS_DEFAULT_REGION": "us-east-1",
-        "AWS_S3_REGION_NAME": "us-east-1",
-        "AWS_STORAGE_BUCKET_NAME": "prod-bucket",
-        "AWS_PRODUCTION_STORAGE_BUCKET_NAME": "prod-prod-bucket"
-      },
-      "redis": {
-        "REDIS_HOST": "prod-redis-host",
-        "REDIS_PORT": "6379",
-        "REDIS_PASSWORD": "prod_pass",
-        "REDIS_DB": "0",
-        "REDIS_SSL": "true",
-        "REDIS_SSL_CERT": "/path/to/cert.pem",
-        "REDIS_SSL_KEY": "/path/to/key.pem",
-        "REDIS_SSL_CA": "/path/to/ca.pem"
-      }
+    "aws": {
+      "AWS_ACCESS_KEY_ID": "EXAMPLE_KEY_ID",
+      "AWS_SECRET_ACCESS_KEY": "EXAMPLE_SECRET",
+      "AWS_DEFAULT_REGION": "us-east-1",
+      "AWS_S3_REGION_NAME": "us-east-1",
+      "AWS_STORAGE_BUCKET_NAME": "example-bucket",
+      "AWS_PRODUCTION_STORAGE_BUCKET_NAME": "example-prod-bucket"
+    },
+    "redis": {
+      "REDIS_HOST": "localhost",
+      "REDIS_PORT": "6379",
+      "REDIS_PASSWORD": "",
+      "REDIS_DB": "0",
+      "REDIS_SSL": "false",
+      "REDIS_SSL_CERT": "",
+      "REDIS_SSL_KEY": "",
+      "REDIS_SSL_CA": ""
+    }
+  },
+  "dev": {
+    "db": {
+      "DATABASE_URL": "postgres://dev_user:dev_pass@dev-host:5432/dev_db"
+    },
+    "elastic": {
+      "ELASTIC_SEARCH_API_ADMIN_CREDENTIALS": "dev_admin:dev_pass",
+      "ELASTIC_SEARCH_API_SEARCH_CREDENTIALS": "dev_search:dev_pass",
+      "ELASTIC_SEARCH_API_URL": "http://dev-elastic:9200"
+    },
+    "search-index": {
+      "STRAT_SEARCH_INDEX_NAME_ADS": "dev_ads_index",
+      "STRAT_SEARCH_INDEX_NAME_AGENCIES": "dev_agencies_index",
+      "STRAT_SEARCH_INDEX_NAME_LOCATIONS": "dev_locations_index",
+      "STRAT_SEARCH_INDEX_NAME_FREQUENT_SEARCH_QUERIES": "dev_frequent_queries_index",
+      "STRAT_SEARCH_INDEX_NAME_URL_SPECIFIC_SEO": "dev_url_seo_index"
+    },
+    "aws": {
+      "AWS_ACCESS_KEY_ID": "DEV_KEY_ID",
+      "AWS_SECRET_ACCESS_KEY": "DEV_SECRET",
+      "AWS_DEFAULT_REGION": "us-east-1",
+      "AWS_S3_REGION_NAME": "us-east-1",
+      "AWS_STORAGE_BUCKET_NAME": "dev-bucket",
+      "AWS_PRODUCTION_STORAGE_BUCKET_NAME": "dev-prod-bucket"
+    },
+    "redis": {
+      "REDIS_HOST": "dev-redis-host",
+      "REDIS_PORT": "6379",
+      "REDIS_PASSWORD": "dev_pass",
+      "REDIS_DB": "1",
+      "REDIS_SSL": "false",
+      "REDIS_SSL_CERT": "",
+      "REDIS_SSL_KEY": "",
+      "REDIS_SSL_CA": ""
+    }
+  },
+  "prod": {
+    "db": {
+      "DATABASE_URL": "postgres://prod_user:prod_pass@prod-host:5432/prod_db"
+    },
+    "elastic": {
+      "ELASTIC_SEARCH_API_ADMIN_CREDENTIALS": "prod_admin:prod_pass",
+      "ELASTIC_SEARCH_API_SEARCH_CREDENTIALS": "prod_search:prod_pass",
+      "ELASTIC_SEARCH_API_URL": "https://prod-elastic.example.com:9200"
+    },
+    "search-index": {
+      "STRAT_SEARCH_INDEX_NAME_ADS": "prod_ads_index",
+      "STRAT_SEARCH_INDEX_NAME_AGENCIES": "prod_agencies_index",
+      "STRAT_SEARCH_INDEX_NAME_LOCATIONS": "prod_locations_index",
+      "STRAT_SEARCH_INDEX_NAME_FREQUENT_SEARCH_QUERIES": "prod_frequent_queries_index",
+      "STRAT_SEARCH_INDEX_NAME_URL_SPECIFIC_SEO": "prod_url_seo_index"
+    },
+    "aws": {
+      "AWS_ACCESS_KEY_ID": "PROD_KEY_ID",
+      "AWS_SECRET_ACCESS_KEY": "PROD_SECRET",
+      "AWS_DEFAULT_REGION": "us-east-1",
+      "AWS_S3_REGION_NAME": "us-east-1",
+      "AWS_STORAGE_BUCKET_NAME": "prod-bucket",
+      "AWS_PRODUCTION_STORAGE_BUCKET_NAME": "prod-prod-bucket"
+    },
+    "redis": {
+      "REDIS_HOST": "prod-redis-host",
+      "REDIS_PORT": "6379",
+      "REDIS_PASSWORD": "prod_pass",
+      "REDIS_DB": "0",
+      "REDIS_SSL": "true",
+      "REDIS_SSL_CERT": "/path/to/cert.pem",
+      "REDIS_SSL_KEY": "/path/to/key.pem",
+      "REDIS_SSL_CA": "/path/to/ca.pem"
     }
   }
-  
+}

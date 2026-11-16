@@ -1,111 +1,219 @@
 {
-    "project": {
-      "description": "TaskMaster Project Services",
-  
-      "commands": {
-        "run_backend": "python manage.py runserver",
-        "run_frontend": "npm run start",
-        "migrate": "python manage.py migrate",
-        "tests": "pytest tests/",
-        "celery": "celery -A taskmaster worker --loglevel=info",
-        "docker_build": "docker-compose build"
-      },
-  
-      "notes": [
-        "Redis must be running for Celery tasks.",
-        "PostgreSQL must be available locally or in dev/prod."
+  "project": {
+    "description": "TaskMaster Project Services",
+    "commands": {
+      "run_backend": "python manage.py runserver",
+      "run_frontend": "npm run start",
+      "migrate": "python manage.py migrate",
+      "tests": "pytest tests/",
+      "celery": "celery -A taskmaster worker --loglevel=info",
+      "docker_build": "docker-compose build"
+    },
+    "notes": [
+      "Redis must be running for Celery tasks.",
+      "PostgreSQL must be available locally or in dev/prod."
+    ],
+    "pending_tasks": {
+      "features": [
+        "Add notification system",
+        "Integrate third-party OAuth"
       ],
-  
-      "pending_tasks": {
-        "features": [
-          "Add notification system",
-          "Integrate third-party OAuth"
+      "bugs": [
+        "Fix occasional Celery timeout"
+      ]
+    },
+    "links": [
+      {
+        "title": "Grafana dashboard",
+        "url": "https://grafana.example.com/d/taskmaster"
+      },
+      {
+        "title": "GitHub repo",
+        "url": "https://github.com/yourname/task-master"
+      },
+      {
+        "title": "Sentry issues",
+        "url": "https://sentry.example.com/taskmaster"
+      }
+    ],
+    "tasks": [
+      {
+        "id": "t-001",
+        "title": "Review API latency after deploy",
+        "status": "doing",
+        "priority": "high",
+        "category": "chore",
+        "due": "2026-11-17",
+        "remind_at": "2026-11-17T09:00",
+        "notes": "Deployed the pagination change yesterday. Check p95 in Grafana 12h after rollout.",
+        "links": [
+          "https://grafana.example.com/d/taskmaster"
         ],
-        "bugs": [
-          "Fix occasional Celery timeout"
-        ]
+        "steps": [
+          {
+            "text": "Open the API latency panel",
+            "done": true
+          },
+          {
+            "text": "Compare p95 against last week",
+            "done": false
+          },
+          {
+            "text": "Post the result in #backend",
+            "done": false
+          }
+        ],
+        "impact": "",
+        "challenges": "",
+        "solution": "",
+        "created": "2026-11-17T01:49:45",
+        "updated": "2026-11-17T01:49:45",
+        "completed_on": ""
+      },
+      {
+        "id": "t-002",
+        "title": "Rotate the production Redis password",
+        "status": "blocked",
+        "priority": "urgent",
+        "category": "chore",
+        "due": "2026-11-12",
+        "remind_at": "",
+        "notes": "Blocked on DevOps window.",
+        "links": [],
+        "steps": [
+          {
+            "text": "Get the maintenance window from DevOps",
+            "done": false
+          },
+          {
+            "text": "Update the secret in AWS SSM",
+            "done": false
+          },
+          {
+            "text": "Restart Celery workers",
+            "done": false
+          }
+        ],
+        "impact": "",
+        "challenges": "",
+        "solution": "",
+        "created": "2026-11-17T01:49:45",
+        "updated": "2026-11-17T01:49:45",
+        "completed_on": ""
+      },
+      {
+        "id": "t-003",
+        "title": "Speed up the project list endpoint",
+        "status": "done",
+        "priority": "high",
+        "category": "improvement",
+        "due": "",
+        "remind_at": "",
+        "notes": "List endpoint took ~9s with 4k projects.",
+        "links": [],
+        "steps": [
+          {
+            "text": "Profile with django-debug-toolbar",
+            "done": true
+          },
+          {
+            "text": "Fix N+1 with annotate(Count)",
+            "done": true
+          },
+          {
+            "text": "Add composite index + migration",
+            "done": true
+          },
+          {
+            "text": "Cache page 1 in Redis (60s)",
+            "done": true
+          }
+        ],
+        "impact": "Cut load time from 9s to 1.4s (-84%). Support tickets about the slow dashboard stopped.",
+        "challenges": "select_related made it worse at first: the real culprit was an N+1 in the serializer's task_count field.",
+        "solution": "Annotated task_count with Count() in the queryset, added a composite index on (owner_id, updated_at), and cached the first page in Redis for 60s.",
+        "created": "2026-11-17T01:49:45",
+        "updated": "2026-11-17T01:49:45",
+        "completed_on": "2026-11-10"
       }
+    ]
+  },
+  "local": {
+    "db": {
+      "DATABASE_URL": "postgres://user:password@localhost:5432/taskmaster_db"
     },
-  
-    "local": {
-      "db": {
-        "DATABASE_URL": "postgres://user:password@localhost:5432/taskmaster_db"
-      },
-      "elastic": {
-        "ELASTIC_SEARCH_API_ADMIN_CREDENTIALS": "admin:password",
-        "ELASTIC_SEARCH_API_SEARCH_CREDENTIALS": "search_user:password",
-        "ELASTIC_SEARCH_API_URL": "http://localhost:9200"
-      },
-      "aws": {
-        "AWS_ACCESS_KEY_ID": "LOCAL_KEY",
-        "AWS_SECRET_ACCESS_KEY": "LOCAL_SECRET",
-        "AWS_DEFAULT_REGION": "us-west-1",
-        "AWS_S3_REGION_NAME": "us-west-1",
-        "AWS_STORAGE_BUCKET_NAME": "local-bucket",
-        "AWS_PRODUCTION_STORAGE_BUCKET_NAME": "local-prod-bucket"
-      },
-      "redis": {
-        "REDIS_HOST": "localhost",
-        "REDIS_PORT": "6379",
-        "REDIS_PASSWORD": "",
-        "REDIS_DB": "0",
-        "REDIS_SSL": "false"
-      }
+    "elastic": {
+      "ELASTIC_SEARCH_API_ADMIN_CREDENTIALS": "admin:password",
+      "ELASTIC_SEARCH_API_SEARCH_CREDENTIALS": "search_user:password",
+      "ELASTIC_SEARCH_API_URL": "http://localhost:9200"
     },
-  
-    "dev": {
-      "db": {
-        "DATABASE_URL": "postgres://dev_user:dev_pass@dev-host:5432/dev_taskmaster_db"
-      },
-      "elastic": {
-        "ELASTIC_SEARCH_API_ADMIN_CREDENTIALS": "dev_admin:dev_pass",
-        "ELASTIC_SEARCH_API_SEARCH_CREDENTIALS": "dev_search:dev_pass",
-        "ELASTIC_SEARCH_API_URL": "http://dev-elastic:9200"
-      },
-      "aws": {
-        "AWS_ACCESS_KEY_ID": "DEV_KEY",
-        "AWS_SECRET_ACCESS_KEY": "DEV_SECRET",
-        "AWS_DEFAULT_REGION": "us-west-1",
-        "AWS_S3_REGION_NAME": "us-west-1",
-        "AWS_STORAGE_BUCKET_NAME": "dev-bucket",
-        "AWS_PRODUCTION_STORAGE_BUCKET_NAME": "dev-prod-bucket"
-      },
-      "redis": {
-        "REDIS_HOST": "dev-redis-host",
-        "REDIS_PORT": "6379",
-        "REDIS_PASSWORD": "dev_pass",
-        "REDIS_DB": "1",
-        "REDIS_SSL": "false"
-      }
+    "aws": {
+      "AWS_ACCESS_KEY_ID": "LOCAL_KEY",
+      "AWS_SECRET_ACCESS_KEY": "LOCAL_SECRET",
+      "AWS_DEFAULT_REGION": "us-west-1",
+      "AWS_S3_REGION_NAME": "us-west-1",
+      "AWS_STORAGE_BUCKET_NAME": "local-bucket",
+      "AWS_PRODUCTION_STORAGE_BUCKET_NAME": "local-prod-bucket"
     },
-  
-    "prod": {
-      "db": {
-        "DATABASE_URL": "postgres://prod_user:prod_pass@prod-host:5432/prod_taskmaster_db"
-      },
-      "elastic": {
-        "ELASTIC_SEARCH_API_ADMIN_CREDENTIALS": "prod_admin:prod_pass",
-        "ELASTIC_SEARCH_API_SEARCH_CREDENTIALS": "prod_search:prod_pass",
-        "ELASTIC_SEARCH_API_URL": "https://prod-elastic.example.com:9200"
-      },
-      "aws": {
-        "AWS_ACCESS_KEY_ID": "PROD_KEY",
-        "AWS_SECRET_ACCESS_KEY": "PROD_SECRET",
-        "AWS_DEFAULT_REGION": "us-west-1",
-        "AWS_S3_REGION_NAME": "us-west-1",
-        "AWS_STORAGE_BUCKET_NAME": "prod-bucket",
-        "AWS_PRODUCTION_STORAGE_BUCKET_NAME": "prod-prod-bucket"
-      },
-      "redis": {
-        "REDIS_HOST": "prod-redis-host",
-        "REDIS_PORT": "6379",
-        "REDIS_PASSWORD": "prod_pass",
-        "REDIS_DB": "0",
-        "REDIS_SSL": "true",
-        "REDIS_SSL_CERT": "/path/to/cert.pem",
-        "REDIS_SSL_KEY": "/path/to/key.pem",
-        "REDIS_SSL_CA": "/path/to/ca.pem"
-      }
+    "redis": {
+      "REDIS_HOST": "localhost",
+      "REDIS_PORT": "6379",
+      "REDIS_PASSWORD": "",
+      "REDIS_DB": "0",
+      "REDIS_SSL": "false"
+    }
+  },
+  "dev": {
+    "db": {
+      "DATABASE_URL": "postgres://dev_user:dev_pass@dev-host:5432/dev_taskmaster_db"
+    },
+    "elastic": {
+      "ELASTIC_SEARCH_API_ADMIN_CREDENTIALS": "dev_admin:dev_pass",
+      "ELASTIC_SEARCH_API_SEARCH_CREDENTIALS": "dev_search:dev_pass",
+      "ELASTIC_SEARCH_API_URL": "http://dev-elastic:9200"
+    },
+    "aws": {
+      "AWS_ACCESS_KEY_ID": "DEV_KEY",
+      "AWS_SECRET_ACCESS_KEY": "DEV_SECRET",
+      "AWS_DEFAULT_REGION": "us-west-1",
+      "AWS_S3_REGION_NAME": "us-west-1",
+      "AWS_STORAGE_BUCKET_NAME": "dev-bucket",
+      "AWS_PRODUCTION_STORAGE_BUCKET_NAME": "dev-prod-bucket"
+    },
+    "redis": {
+      "REDIS_HOST": "dev-redis-host",
+      "REDIS_PORT": "6379",
+      "REDIS_PASSWORD": "dev_pass",
+      "REDIS_DB": "1",
+      "REDIS_SSL": "false"
+    }
+  },
+  "prod": {
+    "db": {
+      "DATABASE_URL": "postgres://prod_user:prod_pass@prod-host:5432/prod_taskmaster_db"
+    },
+    "elastic": {
+      "ELASTIC_SEARCH_API_ADMIN_CREDENTIALS": "prod_admin:prod_pass",
+      "ELASTIC_SEARCH_API_SEARCH_CREDENTIALS": "prod_search:prod_pass",
+      "ELASTIC_SEARCH_API_URL": "https://prod-elastic.example.com:9200"
+    },
+    "aws": {
+      "AWS_ACCESS_KEY_ID": "PROD_KEY",
+      "AWS_SECRET_ACCESS_KEY": "PROD_SECRET",
+      "AWS_DEFAULT_REGION": "us-west-1",
+      "AWS_S3_REGION_NAME": "us-west-1",
+      "AWS_STORAGE_BUCKET_NAME": "prod-bucket",
+      "AWS_PRODUCTION_STORAGE_BUCKET_NAME": "prod-prod-bucket"
+    },
+    "redis": {
+      "REDIS_HOST": "prod-redis-host",
+      "REDIS_PORT": "6379",
+      "REDIS_PASSWORD": "prod_pass",
+      "REDIS_DB": "0",
+      "REDIS_SSL": "true",
+      "REDIS_SSL_CERT": "/path/to/cert.pem",
+      "REDIS_SSL_KEY": "/path/to/key.pem",
+      "REDIS_SSL_CA": "/path/to/ca.pem"
     }
   }
-  
+}
