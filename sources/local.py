@@ -92,19 +92,24 @@ def write_project(name, data):
         raise
 
 
-def build_template(name, description=""):
-    return {
+def build_template(name, description="", workspace="office"):
+    doc = {
         "project": {
             "description": description or f"{name} project",
+            "workspace": workspace,
             "commands": {},
             "notes": [],
             "links": [],
             "tasks": [],
         },
-        "local": {"urls": {}},
-        "dev": {"db": {}, "urls": {}},
-        "prod": {"db": {}, "urls": {}},
     }
+    if workspace == "office":  # personal projects don't need environments
+        doc.update({
+            "local": {"urls": {}},
+            "dev": {"db": {}, "urls": {}},
+            "prod": {"db": {}, "urls": {}},
+        })
+    return doc
 
 
 # --------------------------------------------------------------------------- #
@@ -192,7 +197,7 @@ def diff_envs(project: str, env1: str, env2: str):
             print(f"\nDifferent values in '{service}'")
 
 
-def create_project_template(name: str):
+def create_project_template(name: str, workspace: str = "office"):
     name = name.lower()
     if not is_valid_name(name):
         print("\n❌ Use letters, numbers, '-' or '_' for the project name (max 64 chars)")
@@ -204,5 +209,5 @@ def create_project_template(name: str):
         print("\n❌ Project already exists")
         return
 
-    write_project(name, build_template(name))
-    print(f"\n✅ Project '{name}' created successfully at: {file}")
+    write_project(name, build_template(name, workspace=workspace))
+    print(f"\n✅ {workspace.capitalize()} project '{name}' created successfully at: {file}")

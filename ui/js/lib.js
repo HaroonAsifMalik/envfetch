@@ -66,6 +66,10 @@ const ICONS = {
   folder: '<path d="M3 6a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/>',
   trophy: '<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0zM17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/>',
   keyboard: '<rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/>',
+  chevron: '<path d="M9 6l6 6-6 6"/>',
+  briefcase: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M3 13h18"/>',
+  heart: '<path d="M12 20s-8-5-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 9c0 6-8 11-8 11z"/>',
+  sparkle: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z"/>',
 };
 
 export function icon(name, size) {
@@ -97,12 +101,12 @@ export function hue(text) {
 export function avatar(name, large) {
   return h('span', {
     class: 'avatar' + (large ? ' lg' : ''),
-    style: { background: `linear-gradient(135deg, hsl(${hue(name)} 70% 52%), hsl(${(hue(name) + 40) % 360} 70% 42%))` },
+    style: { background: `hsl(${hue(name)} 48% 44%)` },
   }, (name || '?')[0]);
 }
 
-const ENV_COLORS = { local: '#38bdf8', dev: '#f5b942', development: '#f5b942', staging: '#b78cff', stage: '#b78cff', qa: '#2dd4bf', uat: '#2dd4bf', prod: '#ff5d6c', production: '#ff5d6c' };
-export const envColor = (name) => ENV_COLORS[name.toLowerCase()] || `hsl(${hue(name)} 65% 58%)`;
+const ENV_COLORS = { local: '#2f86a6', dev: '#b7791f', development: '#b7791f', staging: '#7c5cbf', stage: '#7c5cbf', qa: '#1f8a7a', uat: '#1f8a7a', prod: '#c43d4b', production: '#c43d4b' };
+export const envColor = (name) => ENV_COLORS[name.toLowerCase()] || `hsl(${hue(name)} 45% 42%)`;
 export const isProd = (name) => /^prod(uction)?$/i.test(name);
 
 // ---------- toasts ---------------------------------------------------------- //
@@ -156,7 +160,7 @@ export function closeModal(force = false) {
   old.remove();
   document.body.classList.remove('modal-open');
   if (old._onClose) old._onClose();
-  return true;
+  return true; // callers can rely on this: false means the guard kept the dialog open
 }
 
 export function confirmDialog({ title, message, confirmLabel = 'Delete', danger = true }) {

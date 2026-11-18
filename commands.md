@@ -25,7 +25,12 @@ python envfetch.py -p temp-project --add-task "Fix sitemap" --category bug --pri
 python envfetch.py -p temp-project --done t-003
 python envfetch.py --due                          # everything that needs attention
 python envfetch.py --due --notify                 # + macOS notifications for reminders
+python envfetch.py --due --workspace personal     # only personal tasks
+python envfetch.py -p <proj> --add-task "X" --remind-in 12h   # task with a reminder
+python envfetch.py -p <proj> --remind t-003 --remind-in 90m  # start a reminder clock now
+python envfetch.py --create-project moving --workspace personal
 python envfetch.py -p temp-project --pending_tasks   # older pending_tasks list
 
 ## Tests
 python -m unittest discover -s tests -v
+node --test tests/js/*.test.mjs

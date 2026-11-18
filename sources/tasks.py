@@ -31,6 +31,39 @@ _LEGACY_CATEGORY = {
 }
 
 
+WORKSPACES = ("office", "personal")
+_DELAY_RE = re.compile(r"^(\d+(?:\.\d+)?)\s*(m|mins?|minutes?|h|hrs?|hours?|d|days?|w|weeks?)$", re.I)
+
+
+def workspace_of(doc):
+    """Which workspace a project belongs to. Older files have none: they are 'office'."""
+    value = (doc.get("project") or {}).get("workspace")
+    return value if value in WORKSPACES else "office"
+
+
+def parse_delay(text):
+    """'30m' / '12h' / '2d' / '1w' -> timedelta, or None if it is not understood."""
+    match = _DELAY_RE.match(str(text or "").strip())
+    if not match:
+        return None
+    amount, unit = float(match.group(1)), match.group(2).lower()
+    if unit.startswith("m"):
+        return timedelta(minutes=amount)
+    if unit.startswith("h"):
+        return timedelta(hours=amount)
+    if unit.startswith("d"):
+        return timedelta(days=amount)
+    return timedelta(weeks=amount)
+
+
+def remind_in(text, now=None):
+    """The ``remind_at`` value for 'N minutes/hours/days from now'."""
+    delta = parse_delay(text)
+    if delta is None:
+        raise ValueError("Use a delay like 30m, 12h, 2d or 1w")
+    return ((now or datetime.now()) + delta).strftime("%Y-%m-%dT%H:%M")
+
+
 def now_iso():
     return datetime.now().isoformat(timespec="seconds")
 

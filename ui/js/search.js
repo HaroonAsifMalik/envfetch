@@ -1,7 +1,7 @@
 // ⌘K command palette: one search box across everything you have stored.
 // Env VALUES are never indexed or shown here — only service and key names.
 import { h, icon, avatar, openModal, closeModal, copyText, friendlyDate } from './lib.js';
-import { state, projectNames, envNames, STATUS_LABEL, isHttp } from './store.js';
+import { state, projectNames, envNames, wsOf, WS_META, STATUS_LABEL } from './store.js';
 import { openTaskModal } from './tasks.js';
 
 function buildIndex() {
@@ -9,7 +9,7 @@ function buildIndex() {
   for (const name of projectNames()) {
     const doc = state.docs[name];
     const p = doc.project;
-    items.push({ kind: 'Projects', ico: 'folder', title: name, sub: p.description, hay: `${name} ${p.description}`, run: () => { location.hash = `#/p/${name}`; } });
+    items.push({ kind: 'Projects', ico: 'folder', title: name, sub: `${WS_META[wsOf(doc)].label}: ${p.description || 'no description'}`, hay: `${name} ${p.description} ${wsOf(doc)}`, run: () => { location.hash = `#/p/${name}`; } });
 
     for (const task of p.tasks) {
       const text = [task.title, task.notes, task.impact, task.challenges, task.solution, task.category, task.id, ...task.steps.map((s) => s.text)].join(' ');
@@ -39,6 +39,8 @@ function actions(openNewProject) {
   return [
     { kind: 'Actions', ico: 'plus', title: 'New task', sub: 'Capture something', hay: 'new task add create', run: () => document.dispatchEvent(new CustomEvent('envfetch:new-task')) },
     { kind: 'Actions', ico: 'folder', title: 'New project', sub: 'Start tracking another project', hay: 'new project add create', run: openNewProject },
+    { kind: 'Actions', ico: 'sparkle', title: 'Write my update', sub: 'Daily standup or weekly summary', hay: 'standup update weekly daily report summary', run: () => document.dispatchEvent(new CustomEvent('envfetch:standup')) },
+    { kind: 'Actions', ico: 'briefcase', title: 'Switch Office / Personal', sub: 'Change workspace', hay: 'switch workspace office personal', run: () => document.dispatchEvent(new CustomEvent('envfetch:switch-workspace')) },
     { kind: 'Actions', ico: 'home', title: 'Go home', sub: 'Dashboard', hay: 'home dashboard today', run: () => { location.hash = '#/'; } },
     { kind: 'Actions', ico: 'sun', title: 'Toggle theme', sub: 'Light / dark', hay: 'theme dark light mode', run: () => document.dispatchEvent(new CustomEvent('envfetch:toggle-theme')) },
   ];

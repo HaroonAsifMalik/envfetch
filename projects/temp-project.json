@@ -1,6 +1,7 @@
 {
   "project": {
     "description": "Example Project Services",
+    "workspace": "office",
     "commands": {
       "run_backend": "python manage.py runserver",
       "run_frontend": "npm run dev",

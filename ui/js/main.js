@@ -1,10 +1,14 @@
-// App shell, router, keyboard shortcuts, theme.
+// App shell, router, keyboard shortcuts, theme, workspaces.
 import { $, h, icon, avatar, openModal, closeModal, modalOpen, toast } from './lib.js';
-import { state, bus, loadAll, createProject, projectNames, dueState, saveUi, rerender } from './store.js';
+import {
+  state, bus, loadAll, createProject, projectNames, allTasks, dueState, remindDue, saveUi, rerender,
+  setWorkspace, wsOf, WS_META, WORKSPACES,
+} from './store.js';
 import { homeView } from './home.js';
 import { projectView } from './project.js';
 import { openTaskModal } from './tasks.js';
 import { openPalette } from './search.js';
+import { openStandup } from './standup.js';
 
 const app = $('#app');
 
@@ -16,6 +20,19 @@ function toggleTheme() {
   rerender();
 }
 
+// ---------- workspaces ------------------------------------------------------- //
+function switchWorkspace(ws) {
+  if (ws === state.ui.ws) return;
+  setWorkspace(ws);
+  if (location.hash && location.hash !== '#/' && location.hash !== '#') location.hash = '#/';
+  else rerender();
+}
+
+// How many things in a workspace need a human right now.
+function attention(ws) {
+  return allTasks(ws).filter(({ task }) => task.status !== 'done' && (['overdue', 'today'].includes(dueState(task)) || remindDue(task))).length;
+}
+
 // ---------- routing ---------------------------------------------------------- //
 function parseRoute() {
   const parts = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean).map(decodeURIComponent);
@@ -25,22 +42,34 @@ function parseRoute() {
 
 // ---------- dialogs ---------------------------------------------------------- //
 function newProjectDialog() {
-  const name = h('input', { placeholder: 'my-awesome-app', autofocus: true, autocomplete: 'off', spellcheck: 'false' });
-  const description = h('input', { placeholder: 'One line about it (optional)' });
+  let ws = state.ui.ws;
+  const name = h('input', { placeholder: 'my-awesome-app', autofocus: true, autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Project name' });
+  const description = h('input', { 'aria-label': 'Description' });
+  const hint = h('div', { class: 'hint' });
+  const seg = h('div', { class: 'seg wide', role: 'group', 'aria-label': 'Workspace' });
+  const draw = () => {
+    seg.replaceChildren(...WORKSPACES.map((key) => h('button', { type: 'button', class: ws === key ? 'on' : '', onClick: () => { ws = key; draw(); } }, icon(WS_META[key].icon), WS_META[key].label)));
+    hint.textContent = WS_META[ws].projectHint;
+    description.placeholder = WS_META[ws].descPlaceholder;
+  };
+  draw();
+
   const submit = async () => {
     const value = name.value.trim().toLowerCase();
     if (!/^[a-z0-9][a-z0-9_-]{0,63}$/.test(value)) return toast('Use letters, numbers, - or _ for the name', 'warn', 3000);
     try {
-      const created = await createProject(value, description.value.trim());
+      const created = await createProject(value, description.value.trim(), ws);
       closeModal(true);
+      setWorkspace(ws);
       location.hash = `#/p/${created}`;
       rerender();
     } catch (error) { toast(error.message, 'error', 3500); }
   };
   [name, description].forEach((el) => el.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); }));
   openModal([
-    h('div', { class: 'm-body' }, h('b', { style: { fontSize: '16px' } }, 'New project'),
-      h('div', { class: 'field' }, h('label', {}, 'Name'), name, h('div', { class: 'hint' }, 'Becomes projects/<name>.json — lowercase, no spaces.')),
+    h('div', { class: 'm-body' }, h('b', { class: 'dlg-title' }, 'New project'),
+      h('div', { class: 'field' }, h('label', {}, 'Where does it live?'), seg, hint),
+      h('div', { class: 'field' }, h('label', {}, 'Name'), name, h('div', { class: 'hint' }, 'Becomes projects/<name>.json. Lowercase, no spaces.')),
       h('div', { class: 'field' }, h('label', {}, 'Description'), description)),
     h('div', { class: 'm-foot' }, h('span', { class: 'spacer' }), h('button', { class: 'btn', onClick: () => closeModal() }, 'Cancel'), h('button', { class: 'btn primary', onClick: submit }, 'Create project')),
   ], { size: 'narrow' });
@@ -48,12 +77,12 @@ function newProjectDialog() {
 
 function newTaskDialog() {
   const route = parseRoute();
-  const names = projectNames();
-  if (!names.length) return newProjectDialog();
+  const names = projectNames(state.ui.ws);
   if (route.page === 'project' && state.docs[route.name]) return openTaskModal(route.name, null);
-  const select = h('select', { value: state.ui.lastProject || names[0], autofocus: true }, names.map((n) => h('option', { value: n }, n)));
+  if (!names.length) return newProjectDialog();
+  const select = h('select', { value: state.ui.lastProject && names.includes(state.ui.lastProject) ? state.ui.lastProject : names[0], autofocus: true, 'aria-label': 'Project' }, names.map((n) => h('option', { value: n }, n)));
   openModal([
-    h('div', { class: 'm-body' }, h('b', { style: { fontSize: '16px' } }, 'Which project is this for?'), select),
+    h('div', { class: 'm-body' }, h('b', { class: 'dlg-title' }, 'Which project is this for?'), select),
     h('div', { class: 'm-foot' }, h('span', { class: 'spacer' }), h('button', { class: 'btn', onClick: () => closeModal() }, 'Cancel'),
       h('button', { class: 'btn primary', onClick: () => { const p = select.value; state.ui.lastProject = p; saveUi(); closeModal(true); openTaskModal(p, null); } }, 'Continue')),
   ], { size: 'narrow' });
@@ -62,9 +91,10 @@ function newTaskDialog() {
 function helpDialog() {
   const row = (keys, text) => [h('span', {}, keys.map((k, i) => [i ? ' ' : null, h('kbd', {}, k)])), h('span', {}, text)];
   openModal([
-    h('div', { class: 'm-body' }, h('b', { style: { fontSize: '16px' } }, 'Keyboard shortcuts'),
+    h('div', { class: 'm-body' }, h('b', { class: 'dlg-title' }, 'Keyboard shortcuts'),
       h('div', { class: 'keys' },
-        row(['⌘', 'K'], 'Search everything (also  /)'), row(['N'], 'New task'), row(['G'], 'Go home'), row(['T'], 'Toggle light / dark'),
+        row(['⌘', 'K'], 'Search everything (also  /)'), row(['N'], 'New task'), row(['W'], 'Switch Office / Personal'), row(['S'], 'Write my standup'),
+        row(['G'], 'Go home'), row(['T'], 'Toggle light / dark'),
         row(['⌘', '↵'], 'Save the task you are editing'), row(['Esc'], 'Close dialogs'), row(['?'], 'Show this help'))),
     h('div', { class: 'm-foot' }, h('span', { class: 'spacer' }), h('button', { class: 'btn primary', onClick: () => closeModal() }, 'Got it')),
   ], { size: 'narrow' });
@@ -73,14 +103,28 @@ function helpDialog() {
 document.addEventListener('envfetch:new-task', newTaskDialog);
 document.addEventListener('envfetch:new-project', newProjectDialog);
 document.addEventListener('envfetch:toggle-theme', toggleTheme);
+document.addEventListener('envfetch:standup', openStandup);
+document.addEventListener('envfetch:switch-workspace', () => switchWorkspace(state.ui.ws === 'office' ? 'personal' : 'office'));
 
 // ---------- shell ------------------------------------------------------------ //
+function workspaceSwitch() {
+  return h('div', { class: 'ws-switch', role: 'tablist', 'aria-label': 'Workspace' }, WORKSPACES.map((ws) => {
+    const meta = WS_META[ws];
+    const waiting = ws === state.ui.ws ? 0 : attention(ws);
+    return h('button', {
+      class: 'ws-btn' + (ws === state.ui.ws ? ' on' : ''), role: 'tab', 'aria-selected': ws === state.ui.ws ? 'true' : 'false',
+      title: waiting ? `${waiting} need you in ${meta.label}` : meta.label, onClick: () => switchWorkspace(ws),
+    }, icon(meta.icon), meta.label, waiting ? h('span', { class: 'ws-dot', 'aria-label': `${waiting} need attention` }, waiting) : null);
+  }));
+}
+
 function sidebar(route) {
-  const names = projectNames();
+  const names = projectNames(state.ui.ws);
   return h('aside', { class: 'side' },
-    h('a', { class: 'brand', href: '#/' }, h('span', { class: 'brand-logo' }, icon('bolt')), h('div', {}, h('b', {}, 'EnvFetch'), h('small', {}, 'projects · envs · tasks'))),
+    h('a', { class: 'brand', href: '#/' }, h('span', { class: 'brand-logo' }, icon('check')), h('b', {}, 'EnvFetch')),
+    workspaceSwitch(),
     h('a', { class: 'nav' + (route.page === 'home' ? ' active' : ''), href: '#/' }, icon('home'), h('span', { class: 'grow' }, 'Home')),
-    h('div', { class: 'nav-label' }, 'Projects'),
+    h('div', { class: 'nav-label' }, state.ui.ws === 'office' ? 'Projects' : 'Lists'),
     names.map((name) => {
       const doc = state.docs[name];
       const open = doc.project.tasks.filter((t) => t.status !== 'done');
@@ -89,7 +133,7 @@ function sidebar(route) {
         avatar(name), h('span', { class: 'grow' }, name), open.length ? h('span', { class: 'count' + (overdue ? ' bad' : '') }, overdue || open.length) : null);
     }),
     h('button', { class: 'nav', onClick: newProjectDialog }, icon('plus'), h('span', { class: 'grow' }, 'New project')),
-    Object.keys(state.errors).length ? h('div', { class: 'faint', style: { padding: '8px 10px', fontSize: '12px' } }, `⚠️ Could not read: ${Object.keys(state.errors).join(', ')}`) : null,
+    Object.keys(state.errors).length ? h('div', { class: 'side-note' }, `Could not read: ${Object.keys(state.errors).join(', ')}`) : null,
     h('div', { class: 'side-foot' },
       h('div', { class: 'row' }, h('button', { class: 'btn ghost sm', onClick: toggleTheme, title: 'Toggle theme (T)' }, icon(document.documentElement.dataset.theme === 'dark' ? 'sun' : 'moon'), 'Theme'),
         h('button', { class: 'btn ghost sm', onClick: helpDialog, title: 'Keyboard shortcuts (?)' }, icon('keyboard'), 'Shortcuts')),
@@ -98,16 +142,33 @@ function sidebar(route) {
 
 function topbar(route) {
   const crumbs = route.page === 'home'
-    ? [h('b', {}, 'Home')]
-    : [h('a', { href: '#/', style: { textDecoration: 'none' } }, 'Home'), '/', h('b', {}, route.name)];
+    ? [h('b', {}, WS_META[state.ui.ws].label)]
+    : [h('a', { href: '#/' }, WS_META[state.ui.ws].label), icon('chevron'), h('b', {}, route.name)];
   return h('div', { class: 'topbar' },
     h('div', { class: 'crumbs' }, crumbs),
-    h('button', { class: 'search-btn', onClick: () => openPalette(newProjectDialog) }, icon('search'), h('span', { class: 'grow' }, 'Search everything…'), h('kbd', {}, '⌘K')));
+    h('button', { class: 'search-btn', onClick: () => openPalette(newProjectDialog) }, icon('search'), h('span', { class: 'grow' }, 'Search everything'), h('kbd', {}, '⌘K')));
+}
+
+// ---------- reminders: toast once per reminder, and show a count in the tab title ---------- //
+const announced = new Set();
+let baseTitle = 'EnvFetch';
+
+function announceReminders() {
+  const due = allTasks().filter(({ task }) => remindDue(task));
+  const fresh = due.filter(({ project, task }) => !announced.has(`${project}/${task.id}/${task.remind_at}`));
+  fresh.forEach(({ project, task }) => announced.add(`${project}/${task.id}/${task.remind_at}`));
+  fresh.slice(0, 3).forEach(({ project, task }) => toast(`Reminder: ${task.title} (${project})`, 'warn', 8000));
+  if (fresh.length > 3) toast(`and ${fresh.length - 3} more reminders`, 'warn', 8000);
+  document.title = (due.length ? `(${due.length}) ` : '') + baseTitle;
 }
 
 let lastTaskOpened = null;
 function render() {
   const route = parseRoute();
+  // Opening a project from the other workspace (search, a link) flips the workspace with it.
+  if (route.page === 'project' && state.docs[route.name] && wsOf(state.docs[route.name]) !== state.ui.ws) setWorkspace(wsOf(state.docs[route.name]));
+  document.documentElement.dataset.ws = state.ui.ws;
+
   const scroller = $('.main');
   const scrollTop = scroller ? scroller.scrollTop : 0;
   const focused = document.activeElement && document.activeElement.id;
@@ -122,7 +183,8 @@ function render() {
     const el = document.getElementById(focused);
     if (el) { el.focus(); if (typeof caret === 'number' && el.setSelectionRange) try { el.setSelectionRange(caret, caret); } catch { /* not a text input */ } }
   }
-  document.title = route.page === 'project' ? `${route.name} · EnvFetch` : 'EnvFetch';
+  baseTitle = route.page === 'project' ? `${route.name} - EnvFetch` : `${WS_META[state.ui.ws].label} - EnvFetch`;
+  announceReminders();
 
   // Deep link to a task: #/p/<project>/tasks/<id>
   if (route.taskId && route.taskId !== lastTaskOpened && state.docs[route.name]) {
@@ -145,6 +207,8 @@ document.addEventListener('keydown', (event) => {
   if (event.key === '/') { event.preventDefault(); openPalette(newProjectDialog); }
   else if (event.key === 'n') { event.preventDefault(); newTaskDialog(); }
   else if (event.key === 'g') { location.hash = '#/'; }
+  else if (event.key === 'w') { document.dispatchEvent(new CustomEvent('envfetch:switch-workspace')); }
+  else if (event.key === 's') { event.preventDefault(); openStandup(); }
   else if (event.key === 't') { toggleTheme(); }
   else if (event.key === '?') { helpDialog(); }
 });
@@ -166,6 +230,7 @@ async function boot() {
   bus.addEventListener('render', render);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
   setInterval(refresh, 60000); // keep reminders and due dates fresh
+  setInterval(announceReminders, 20000); // a reminder can come due while a dialog keeps refresh paused
   render();
 }
 

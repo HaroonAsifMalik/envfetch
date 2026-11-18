@@ -1,6 +1,6 @@
 // A single project: header, tabs, and the Overview tab.
 import { h, icon, iconBtn, avatar, envColor, copyText, emptyState, friendlyDate } from './lib.js';
-import { state, update, envNames, sortTasks, dueState, taskWriteup, STATUS_LABEL } from './store.js';
+import { state, update, envNames, sortTasks, dueState, taskWriteup, wsOf, WS_META } from './store.js';
 import { tasksTab, taskRow, openTaskModal } from './tasks.js';
 import { envsTab } from './envs.js';
 import { linksTab, commandsTab, notesTab } from './misc.js';
@@ -17,9 +17,13 @@ export const TABS = [
 export function projectView(name, tab) {
   const doc = state.docs[name];
   if (!doc) return emptyState('🕳️', 'Project not found', `There is no project called "${name}".`, h('a', { class: 'btn', href: '#/' }, 'Back home'));
-  if (!TABS.some(([key]) => key === tab)) tab = 'overview';
-
   const p = doc.project;
+  // Personal projects don't need environments or shell commands, unless the file already has some.
+  const personal = wsOf(doc) === 'personal';
+  const tabList = TABS.filter(([key]) =>
+    !personal || !((key === 'env' && !envNames(doc).length) || (key === 'commands' && !Object.keys(p.commands).length)));
+  if (!tabList.some(([key]) => key === tab)) tab = 'overview';
+
   const open = p.tasks.filter((t) => t.status !== 'done');
   const overdue = open.filter((t) => dueState(t) === 'overdue').length;
   const counts = {
@@ -32,10 +36,10 @@ export function projectView(name, tab) {
 
   const header = h('div', { class: 'phead' },
     avatar(name, true),
-    h('div', { class: 'grow' }, h('h1', {}, name), h('div', { class: 'muted' }, p.description || 'No description yet')),
+    h('div', { class: 'grow' }, h('h1', {}, name, h('span', { class: 'ws-tag' }, icon(WS_META[wsOf(doc)].icon), WS_META[wsOf(doc)].label)), h('div', { class: 'muted' }, p.description || 'No description yet')),
     h('button', { class: 'btn primary', onClick: () => openTaskModal(name, null) }, icon('plus'), 'New task'));
 
-  const tabs = h('nav', { class: 'tabs' }, TABS.map(([key, label, ico]) => h('a', { class: 'tab' + (key === tab ? ' active' : ''), href: `#/p/${name}/${key}` },
+  const tabs = h('nav', { class: 'tabs' }, tabList.map(([key, label, ico]) => h('a', { class: 'tab' + (key === tab ? ' active' : ''), href: `#/p/${name}/${key}` },
     icon(ico), label,
     counts[key] ? h('span', { class: 'count', style: key === 'tasks' && overdue ? { background: 'color-mix(in srgb, var(--blocked) 25%, transparent)', color: 'var(--blocked)' } : null }, counts[key]) : null)));
 
@@ -83,10 +87,12 @@ function overviewTab(name) {
           : emptyState('🏆', 'Your playbook starts here', 'When you finish a task, add the impact and solution. They collect here — great for interviews and client pitches.'))),
     h('div', { class: 'grid-2' },
       h('div', { class: 'card' },
-        h('div', { class: 'card-h' }, icon('layers'), h('h3', {}, 'Environments')),
-        envNames(doc).length
-          ? h('div', { class: 'row', style: { flexWrap: 'wrap' } }, envNames(doc).map((env) => h('a', { class: 'chip env', style: { background: envColor(env), padding: '4px 12px', textDecoration: 'none' }, href: `#/p/${name}/env`, onClick: () => { state.ui.env[name] = env; } }, env)))
-          : h('span', { class: 'muted' }, 'None yet'),
+        wsOf(doc) === 'office' || envNames(doc).length ? h('div', {},
+          h('div', { class: 'card-h' }, icon('layers'), h('h3', {}, 'Environments')),
+          envNames(doc).length
+            ? h('div', { class: 'row', style: { flexWrap: 'wrap' } }, envNames(doc).map((env) => h('a', { class: 'chip env', style: { background: envColor(env), padding: '4px 12px', textDecoration: 'none' }, href: `#/p/${name}/env`, onClick: () => { state.ui.env[name] = env; } }, env)))
+            : h('span', { class: 'muted' }, 'None yet')) : null,
+        !p.links.length && wsOf(doc) === 'personal' ? h('div', {}, h('div', { class: 'card-h' }, icon('link'), h('h3', {}, 'Quick links')), h('span', { class: 'muted' }, 'Add links on the Links tab: bookings, forms, accounts.')) : null,
         p.links.length ? h('div', { style: { marginTop: '16px' } }, h('div', { class: 'card-h' }, icon('link'), h('h3', {}, 'Quick links')),
           h('div', { class: 'row', style: { flexWrap: 'wrap' } }, p.links.slice(0, 6).map((l) => h('a', { class: 'btn sm', href: l.url, target: '_blank', rel: 'noopener noreferrer' }, icon('external'), l.title)))) : null),
       h('div', { class: 'card' }, h('div', { class: 'card-h' }, icon('edit'), h('h3', {}, 'Description')), descInput)));

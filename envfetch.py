@@ -91,13 +91,45 @@ def show_legacy_pending(project, wanted_task=None):
             print(f"  • {item}")
 
 
-def add_task(project, title, category, priority, due):
+def add_task(project, title, category, priority, due, remind_in=None):
     doc = load_project_data(project)
     if doc is None:
         return
-    task = task_lib.make_task(doc, title, category=category, priority=priority, due=due or "")
+    if not category:
+        category = "errand" if task_lib.workspace_of(doc) == "personal" else "feature"
+    extra = {}
+    if remind_in:
+        try:
+            extra["remind_at"] = task_lib.remind_in(remind_in)
+        except ValueError as exc:
+            print(f"\n❌ {exc}")
+            return
+    task = task_lib.make_task(doc, title, category=category, priority=priority, due=due or "", **extra)
     local.write_project(project.lower(), doc)
     print(f"\n✅ Added {task['id']} to {project}: {task['title']}")
+    if extra:
+        print(f"   🔔 Reminder at {extra['remind_at'].replace('T', ' ')}")
+
+
+def set_reminder(project, task_id, delay):
+    """`--remind t-003 --remind-in 12h`: start the follow-up clock now (e.g. right after a deploy)."""
+    doc = load_project_data(project)
+    if doc is None:
+        return
+    task = task_lib.find_task(doc, task_id)
+    if not task:
+        print(f"\n❌ Task '{task_id}' not found in {project}")
+        return
+    try:
+        task["remind_at"] = task_lib.remind_in(delay)
+    except ValueError as exc:
+        print(f"\n❌ {exc}")
+        return
+    task.pop("dismissed", None)
+    task.pop("notified", None)
+    task["updated"] = task_lib.now_iso()
+    local.write_project(project.lower(), doc)
+    print(f"\n🔔 Will remind you about '{task['title']}' at {task['remind_at'].replace('T', ' ')}")
 
 
 def finish_task(project, task_id):
@@ -132,14 +164,18 @@ def notify_macos(title, message):
     return True
 
 
-def show_due(project=None, notify=False):
+def show_due(project=None, notify=False, workspace=None):
     names = [project.lower()] if project else local.list_projects()
     docs = {}
     for name in names:
         try:
-            docs[name] = local.read_project(name)
+            doc = local.read_project(name)
         except (OSError, ValueError):
             print(f"⚠️  Skipping '{name}' (could not read it)")
+            continue
+        if workspace and task_lib.workspace_of(doc) != workspace:
+            continue
+        docs[name] = doc
 
     items = task_lib.attention(docs)
     if not items:
@@ -178,6 +214,8 @@ def build_parser():
     parser.add_argument("--list", action="store_true", help="List services in environment")
     parser.add_argument("--diff", nargs=2, metavar=("ENV1", "ENV2"), help="Diff two environments")
     parser.add_argument("--create-project", help="Create new project template")
+    parser.add_argument("--workspace", choices=task_lib.WORKSPACES,
+                        help="With --create-project: where it lives (default office). With --due: only that workspace")
 
     parser.add_argument("--commands", action="store_true", help="Show project commands")
     parser.add_argument("--notes", action="store_true", help="Show project notes")
@@ -186,9 +224,11 @@ def build_parser():
     tasks.add_argument("--tasks", action="store_true", help="Show open tasks for a project")
     tasks.add_argument("--status", choices=task_lib.STATUSES, help="Filter --tasks by status")
     tasks.add_argument("--add-task", metavar="TITLE", help="Add a task to a project")
-    tasks.add_argument("--category", default="feature", help="Category for --add-task (default: feature)")
+    tasks.add_argument("--category", help="Category for --add-task (default: feature, or errand in a personal project)")
     tasks.add_argument("--priority", choices=task_lib.PRIORITIES, default="medium", help="Priority for --add-task")
     tasks.add_argument("--due-date", metavar="YYYY-MM-DD", help="Due date for --add-task")
+    tasks.add_argument("--remind-in", metavar="DELAY", help="Remind me after a delay such as 30m, 12h, 2d (with --add-task or --remind)")
+    tasks.add_argument("--remind", metavar="TASK_ID", help="Start a reminder clock on an existing task (use with --remind-in)")
     tasks.add_argument("--done", metavar="TASK_ID", help="Mark a task as done (e.g. t-003)")
     tasks.add_argument("--due", action="store_true", help="Show overdue / due / reminded / blocked tasks (all projects)")
     tasks.add_argument("--notify", action="store_true", help="With --due: send macOS notifications for reminders")
@@ -220,12 +260,12 @@ def main():
 
     # ✅ Create new project
     if args.create_project:
-        create_project_template(args.create_project)
+        create_project_template(args.create_project, args.workspace or "office")
         return
 
     # ✅ What needs attention (works without -p)
     if args.due:
-        show_due(args.project, notify=args.notify)
+        show_due(args.project, notify=args.notify, workspace=args.workspace)
         return
 
     if not args.project:
@@ -249,7 +289,14 @@ def main():
 
     # ✅ Tasks
     if args.add_task:
-        add_task(args.project, args.add_task, args.category, args.priority, args.due_date)
+        add_task(args.project, args.add_task, args.category, args.priority, args.due_date, args.remind_in)
+        return
+
+    if args.remind:
+        if not args.remind_in:
+            print("\n❌ Add --remind-in, for example: --remind t-003 --remind-in 12h")
+            return
+        set_reminder(args.project, args.remind, args.remind_in)
         return
 
     if args.done:

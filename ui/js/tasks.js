@@ -4,9 +4,11 @@ import {
 } from './lib.js';
 import {
   state, saveUi, update, rerender, importLegacy, addTask, applyStatus, blankTask, dueState, remindDue,
-  stepProgress, sortTasks, taskWriteup, parseQuick,
-  STATUSES, STATUS_LABEL, STATUS_COLOR, PRIORITIES, DEFAULT_CATEGORIES,
+  stepProgress, sortTasks, taskWriteup, parseQuick, categoriesFor, wsOf, WS_META,
+  remindAtFrom, tomorrowAt, untilLabel,
+  STATUSES, STATUS_LABEL, STATUS_COLOR, PRIORITIES,
 } from './store.js';
+import { similarPanel } from './similar.js';
 
 // ---------- small building blocks ------------------------------------------ //
 export function dueChip(task) {
@@ -28,7 +30,8 @@ function badges(task, { project } = {}) {
     project ? h('span', { class: 'chip' }, project) : null,
     h('span', { class: 'chip' }, task.category),
     dueChip(task),
-    remindDue(task) ? h('span', { class: 'chip reminder' }, icon('bell'), 'Reminder') : null,
+    remindDue(task) ? h('span', { class: 'chip reminder' }, icon('bell'), 'Reminder')
+      : task.remind_at && task.status !== 'done' && task.dismissed !== task.remind_at ? h('span', { class: 'chip reminder-soon', title: 'Reminder set' }, icon('bell'), untilLabel(task.remind_at).replace('time has passed', 'now')) : null,
     total ? h('span', { class: 'chip' }, icon('check'), `${done}/${total}`) : null,
     task.impact ? h('span', { class: 'chip good', title: 'Has an impact write-up' }, icon('target'), 'Impact') : null,
   ];
@@ -85,7 +88,7 @@ export function tasksTab(project) {
   const doc = state.docs[project];
   const all = doc.project.tasks;
   const filtered = applyFilters(all);
-  const categories = [...new Set([...DEFAULT_CATEGORIES, ...all.map((t) => t.category)])].filter(Boolean);
+  const categories = categoriesFor(doc, all);
   const legacyCount = countLegacy(doc);
   const root = h('div', {});
 
@@ -115,7 +118,7 @@ export function tasksTab(project) {
     h('button', { class: 'btn primary', onClick: () => openTaskModal(project, null) }, icon('plus'), 'New task')));
 
   if (!all.length) {
-    root.append(emptyState('🚀', 'No tasks yet', 'Type one into the box above, or press N. Use !high  #bug  @friday to set details as you type.'));
+    root.append(emptyState('✨', 'No tasks yet', 'Type one into the box above, or press N. Add !high, #category or @friday to set details as you type.'));
   } else if (!filtered.length) {
     root.append(emptyState('🔎', 'Nothing matches those filters', 'Clear the filter box or pick "All categories".'));
   } else {
@@ -175,9 +178,9 @@ function list(project, tasks) {
 
 // ---------- quick add ------------------------------------------------------- //
 export function quickAdd(project, { projects } = {}) {
-  const input = h('input', { id: 'quick-input', placeholder: 'Capture a task…  e.g.  Upgrade DB to PG16 !high #chore @friday', autocomplete: 'off' });
+  const input = h('input', { id: 'quick-input', placeholder: WS_META[state.ui.ws].taskPlaceholder, autocomplete: 'off', 'aria-label': 'New task' });
   const select = projects
-    ? h('select', { id: 'quick-project', title: 'Project', value: state.ui.lastProject && projects.includes(state.ui.lastProject) ? state.ui.lastProject : projects[0] },
+    ? h('select', { id: 'quick-project', title: 'Project', 'aria-label': 'Project', value: state.ui.lastProject && projects.includes(state.ui.lastProject) ? state.ui.lastProject : projects[0] },
       projects.map((p) => h('option', { value: p }, p)))
     : null;
 
@@ -194,7 +197,9 @@ export function quickAdd(project, { projects } = {}) {
 
   return h('div', {},
     h('div', { class: 'quick' }, icon('plus'), input, select, h('button', { class: 'btn primary', onClick: submit }, 'Add')),
-    h('div', { class: 'quick-hint' }, 'Shortcuts while typing: ', h('code', {}, '!high'), ' priority · ', h('code', {}, '#bug'), ' category · ', h('code', {}, '@tomorrow'), ' ', h('code', {}, '@fri'), ' ', h('code', {}, '@+3d'), ' due date'));
+    h('div', { class: 'quick-hint' }, 'While typing: ',
+      h('code', {}, '!high'), ' sets priority, ', h('code', {}, '#bug'), ' category, ',
+      h('code', {}, '@fri'), ' or ', h('code', {}, '@+3d'), ' a due date, ', h('code', {}, '~12h'), ' a reminder 12 hours from now.'));
 }
 
 // ---------- task editor modal ----------------------------------------------- //
@@ -204,20 +209,61 @@ export function openTaskModal(project, id, defaults = {}) {
   const existing = id ? doc.project.tasks.find((t) => t.id === id) : null;
   if (id && !existing) return toast('That task no longer exists', 'warn');
 
-  const task = JSON.parse(JSON.stringify(existing || blankTask({ ...defaults })));
+  const task = JSON.parse(JSON.stringify(existing || blankTask({ category: WS_META[wsOf(doc)].defaultCategory, ...defaults })));
   let dirty = !existing && !!defaults.title;
   const touch = () => { dirty = true; };
 
-  const categories = [...new Set([...DEFAULT_CATEGORIES, ...doc.project.tasks.map((t) => t.category)])].filter(Boolean);
+  const categories = categoriesFor(doc, doc.project.tasks);
 
-  const title = h('input', { class: 'title-input', placeholder: 'What needs to happen?', value: task.title, autofocus: !existing, onInput: (e) => { task.title = e.target.value; touch(); } });
+  const similar = similarPanel({
+    project,
+    getTask: () => task,
+    onReuse: (texts) => {
+      const have = new Set(task.steps.map((s) => s.text.trim().toLowerCase()));
+      const fresh = texts.filter((t) => !have.has(t.trim().toLowerCase()));
+      task.steps.push(...fresh.map((text) => ({ text, done: false })));
+      touch();
+      renderSteps();
+      toast(fresh.length ? `Added ${fresh.length} step${fresh.length > 1 ? 's' : ''} from a past task` : 'Those steps are already here');
+    },
+    onOpen: (from, taskId) => { if (closeModal()) openTaskModal(from, taskId); },
+  });
+  let similarTimer;
+  const refreshSimilar = () => { clearTimeout(similarTimer); similarTimer = setTimeout(similar.refresh, 250); };
+
+  const title = h('input', { class: 'title-input', placeholder: 'What needs to happen?', value: task.title, autofocus: !existing, onInput: (e) => { task.title = e.target.value; touch(); refreshSimilar(); } });
   const status = h('select', { value: task.status, onChange: (e) => { task.status = e.target.value; touch(); syncWriteupHint(); } }, STATUSES.map((s) => h('option', { value: s }, STATUS_LABEL[s])));
   const priority = h('select', { value: task.priority, onChange: (e) => { task.priority = e.target.value; touch(); } }, PRIORITIES.map((p) => h('option', { value: p }, p)));
   const category = h('input', { list: 'categories', value: task.category, onInput: (e) => { task.category = e.target.value.trim().toLowerCase(); touch(); } });
   const datalist = h('datalist', { id: 'categories' }, categories.map((c) => h('option', { value: c })));
   const due = h('input', { type: 'date', value: task.due, onInput: (e) => { task.due = e.target.value; touch(); } });
-  const remind = h('input', { type: 'datetime-local', value: task.remind_at, onInput: (e) => { task.remind_at = e.target.value; touch(); } });
-  const notes = h('textarea', { placeholder: 'Context, requirements, what to remember…', value: task.notes, onInput: (e) => { task.notes = e.target.value; touch(); } });
+  const notes = h('textarea', { placeholder: 'Context, requirements, what to remember…', value: task.notes, onInput: (e) => { task.notes = e.target.value; touch(); refreshSimilar(); } });
+
+  // Reminder: pick a moment, or start a clock ("12 hours after I deploy").
+  const remind = h('input', { type: 'datetime-local', value: task.remind_at, 'aria-label': 'Remind me at', onInput: (e) => { task.remind_at = e.target.value; touch(); syncRemind(); } });
+  const remindNote = h('div', { class: 'hint remind-note' });
+  const customDelay = h('input', { class: 'delay-input', placeholder: 'e.g. 6h', 'aria-label': 'Custom delay', size: 6 });
+  const setRemind = (value) => { task.remind_at = value; remind.value = value; touch(); syncRemind(); };
+  const syncRemind = () => {
+    remindNote.textContent = task.remind_at ? `Reminds you ${untilLabel(task.remind_at)}` : 'No reminder set. Pick a preset, or type a delay like 6h, 2d.';
+  };
+  const applyCustom = () => {
+    const value = remindAtFrom(customDelay.value.replace(/\s/g, ''));
+    if (!value) return toast('Use a delay like 30m, 12h, 2d or 1w', 'warn', 2800);
+    setRemind(value);
+    customDelay.value = '';
+  };
+  customDelay.addEventListener('keydown', (e) => {
+    // Plain Enter sets the delay; ⌘/Ctrl+Enter still bubbles up and saves the task.
+    if (e.key === 'Enter' && !e.metaKey && !e.ctrlKey) { e.preventDefault(); e.stopPropagation(); applyCustom(); }
+  });
+  const presets = h('div', { class: 'presets', role: 'group', 'aria-label': 'Reminder presets' },
+    [['In 1 hour', '1h'], ['In 4 hours', '4h'], ['In 12 hours', '12h'], ['In 2 days', '2d']].map(([label, delay]) =>
+      h('button', { class: 'chip-btn', type: 'button', onClick: () => setRemind(remindAtFrom(delay)) }, label)),
+    h('button', { class: 'chip-btn', type: 'button', onClick: () => setRemind(tomorrowAt(9)) }, 'Tomorrow 9am'),
+    customDelay, h('button', { class: 'chip-btn', type: 'button', onClick: applyCustom }, 'Set'),
+    h('button', { class: 'chip-btn quiet', type: 'button', onClick: () => setRemind('') }, 'Clear'));
+  syncRemind();
   const links = h('textarea', { placeholder: 'One link per line — PR, ticket, doc, dashboard', rows: 2, value: task.links.join('\n'), onInput: (e) => { task.links = e.target.value.split('\n').map((l) => l.trim()).filter(Boolean); touch(); } });
 
   // Steps checklist ------------------------------------------------------- //
@@ -289,8 +335,10 @@ export function openTaskModal(project, id, defaults = {}) {
 
   const body = h('div', { class: 'm-body' },
     title,
-    h('div', { class: 'fields' }, field('Status', status), field('Priority', priority), field('Category', category), field('Due', due), field('Remind me', remind)),
+    similar.el,
+    h('div', { class: 'fields' }, field('Status', status), field('Priority', priority), field('Category', category), field('Due', due)),
     datalist,
+    h('div', { class: 'field' }, h('label', {}, 'Remind me'), remind, presets, remindNote),
     field('Notes', notes),
     h('div', { class: 'field' }, h('label', {}, 'Steps'), stepsBox,
       h('button', { class: 'btn sm', style: { marginTop: '8px' }, onClick: () => { task.steps.push({ text: '', done: false }); touch(); renderSteps(task.steps.length - 1); } }, icon('plus'), 'Add step'),
@@ -321,4 +369,5 @@ export function openTaskModal(project, id, defaults = {}) {
   box.addEventListener('keydown', (event) => {
     if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') { event.preventDefault(); save(); }
   });
+  similar.refresh();
 }

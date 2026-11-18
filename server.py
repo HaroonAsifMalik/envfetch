@@ -24,7 +24,7 @@ from urllib.parse import unquote, urlparse
 from sources import local
 from sources import tasks as task_lib
 
-__version__ = "2.0.0"
+__version__ = "2.1.0"
 
 UI_DIR = (Path(__file__).resolve().parent / "ui").resolve()
 MAX_BODY = 5 * 1024 * 1024
@@ -146,10 +146,13 @@ class Handler(BaseHTTPRequestHandler):
             name = str(body.get("name", "")).strip().lower()
             if not local.is_valid_name(name):
                 return self._error(400, "Use letters, numbers, '-' or '_' (max 64 chars)")
+            workspace = str(body.get("workspace") or "office")
+            if workspace not in task_lib.WORKSPACES:
+                return self._error(400, "workspace must be 'office' or 'personal'")
             with WRITE_LOCK:
                 if local.project_file(name).exists():
                     return self._error(409, "A project with that name already exists")
-                doc = local.build_template(name, str(body.get("description", "")).strip())
+                doc = local.build_template(name, str(body.get("description", "")).strip(), workspace)
                 local.write_project(name, doc)
                 return self._json(201, {"name": name, "doc": doc, "rev": local.file_rev(name)})
 

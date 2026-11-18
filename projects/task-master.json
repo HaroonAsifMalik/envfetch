@@ -1,6 +1,7 @@
 {
   "project": {
     "description": "TaskMaster Project Services",
+    "workspace": "office",
     "commands": {
       "run_backend": "python manage.py runserver",
       "run_frontend": "npm run start",

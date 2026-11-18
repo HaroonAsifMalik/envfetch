@@ -5,6 +5,7 @@ import sys
 import tempfile
 import threading
 import unittest
+from datetime import datetime
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
@@ -61,6 +62,39 @@ class TaskLogic(unittest.TestCase):
         T.make_task(docs["p"], "fine")
         found = [(task["title"], reasons) for _, task, reasons in T.attention(docs)]
         self.assertEqual([title for title, _ in found], ["late", "blocked", "soon"])
+
+
+class Workspaces(unittest.TestCase):
+    def test_old_files_without_a_workspace_are_office(self):
+        self.assertEqual(T.workspace_of({"project": {}}), "office")
+        self.assertEqual(T.workspace_of({}), "office")
+        self.assertEqual(T.workspace_of({"project": {"workspace": "personal"}}), "personal")
+        self.assertEqual(T.workspace_of({"project": {"workspace": "nonsense"}}), "office")
+
+    def test_template_per_workspace(self):
+        office = local.build_template("api")
+        personal = local.build_template("move", workspace="personal")
+        self.assertEqual(office["project"]["workspace"], "office")
+        self.assertIn("prod", office)
+        self.assertEqual(personal["project"]["workspace"], "personal")
+        self.assertNotIn("prod", personal)  # no environments for life stuff
+
+
+class RelativeReminders(unittest.TestCase):
+    def test_parse_delay(self):
+        self.assertEqual(T.parse_delay("30m").total_seconds(), 1800)
+        self.assertEqual(T.parse_delay("12h").total_seconds(), 12 * 3600)
+        self.assertEqual(T.parse_delay("2 days").total_seconds(), 2 * 86400)
+        self.assertEqual(T.parse_delay("1w").total_seconds(), 7 * 86400)
+        self.assertIsNone(T.parse_delay("soon"))
+        self.assertIsNone(T.parse_delay(""))
+
+    def test_remind_in(self):
+        now = datetime(2026, 11, 18, 11, 0)
+        self.assertEqual(T.remind_in("12h", now), "2026-11-18T23:00")
+        self.assertEqual(T.remind_in("90m", now), "2026-11-18T12:30")
+        with self.assertRaises(ValueError):
+            T.remind_in("later", now)
 
 
 class Storage(unittest.TestCase):
@@ -156,6 +190,18 @@ class ServerSecurity(unittest.TestCase):
         self.assertEqual(self.call("POST", "/api/projects", {"name": "../x"})[0], 400)
         self.assertEqual(self.call("POST", "/api/projects", {"name": "fresh"})[0], 201)
         self.assertEqual(self.call("POST", "/api/projects", {"name": "fresh"})[0], 409)
+
+    def test_create_project_with_workspace(self):
+        status, data = self.call("POST", "/api/projects", {"name": "flat-move", "workspace": "personal"})
+        self.assertEqual(status, 201)
+        self.assertEqual(data["doc"]["project"]["workspace"], "personal")
+        self.assertNotIn("prod", data["doc"])
+        status, data = self.call("POST", "/api/projects", {"name": "shop-api", "workspace": "office"})
+        self.assertEqual(data["doc"]["project"]["workspace"], "office")
+        self.assertIn("prod", data["doc"])
+
+    def test_create_project_rejects_unknown_workspace(self):
+        self.assertEqual(self.call("POST", "/api/projects", {"name": "odd", "workspace": "hobby"})[0], 400)
 
     def test_import_legacy_endpoint(self):
         status, data = self.call("POST", "/api/projects/demo/import-legacy", {})
