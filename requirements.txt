@@ -1,1 +1,1 @@
-# No external packages required
+# No external packages required (Python 3.8+, standard library only)

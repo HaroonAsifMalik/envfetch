@@ -1,0 +1,148 @@
+{
+  "project": {
+    "description": "Home, health, money and learning",
+    "workspace": "personal",
+    "commands": {},
+    "notes": [
+      "Car insurance renews every November. Compare 3 quotes before paying.",
+      "Electricity bill is due on the 10th."
+    ],
+    "links": [
+      {
+        "title": "Bank portal",
+        "url": "https://bank.example.com"
+      },
+      {
+        "title": "Dentist booking",
+        "url": "https://dentist.example.com/book"
+      }
+    ],
+    "tasks": [
+      {
+        "id": "t-001",
+        "title": "Renew car insurance",
+        "status": "todo",
+        "priority": "high",
+        "category": "finance",
+        "due": "2026-11-20",
+        "remind_at": "",
+        "notes": "Policy ends 22 Nov. Compare at least three quotes.",
+        "links": [],
+        "steps": [
+          {
+            "text": "Get 3 quotes",
+            "done": true
+          },
+          {
+            "text": "Pick one and pay online",
+            "done": false
+          },
+          {
+            "text": "Save the PDF to Documents",
+            "done": false
+          }
+        ],
+        "impact": "",
+        "challenges": "",
+        "solution": "",
+        "created": "2026-11-18T11:32:06",
+        "updated": "2026-11-18T11:32:06",
+        "completed_on": ""
+      },
+      {
+        "id": "t-002",
+        "title": "Book dentist check-up",
+        "status": "todo",
+        "priority": "medium",
+        "category": "health",
+        "due": "",
+        "remind_at": "2026-11-19T09:00",
+        "notes": "Last visit was in May.",
+        "links": [],
+        "steps": [],
+        "impact": "",
+        "challenges": "",
+        "solution": "",
+        "created": "2026-11-18T11:32:06",
+        "updated": "2026-11-18T11:32:06",
+        "completed_on": ""
+      },
+      {
+        "id": "t-003",
+        "title": "Plan the weekend trip",
+        "status": "todo",
+        "priority": "low",
+        "category": "social",
+        "due": "2026-11-28",
+        "remind_at": "",
+        "notes": "",
+        "links": [],
+        "steps": [],
+        "impact": "",
+        "challenges": "",
+        "solution": "",
+        "created": "2026-11-18T11:32:06",
+        "updated": "2026-11-18T11:32:06",
+        "completed_on": ""
+      },
+      {
+        "id": "t-004",
+        "title": "Finish the system design book",
+        "status": "doing",
+        "priority": "medium",
+        "category": "learning",
+        "due": "",
+        "remind_at": "",
+        "notes": "",
+        "links": [],
+        "steps": [
+          {
+            "text": "Read chapters 1 to 4",
+            "done": true
+          },
+          {
+            "text": "Write a one-page summary",
+            "done": false
+          }
+        ],
+        "impact": "",
+        "challenges": "",
+        "solution": "",
+        "created": "2026-11-18T11:32:06",
+        "updated": "2026-11-18T11:32:06",
+        "completed_on": ""
+      },
+      {
+        "id": "t-005",
+        "title": "Fix the leaking kitchen tap",
+        "status": "done",
+        "priority": "medium",
+        "category": "home",
+        "due": "",
+        "remind_at": "",
+        "notes": "",
+        "links": [],
+        "steps": [
+          {
+            "text": "Turn off the isolation valve",
+            "done": true
+          },
+          {
+            "text": "Replace the washer",
+            "done": true
+          },
+          {
+            "text": "Test for drips",
+            "done": true
+          }
+        ],
+        "impact": "Saved a plumber call-out (about Rs 3,000). The drip stopped.",
+        "challenges": "The tap handle was seized and the screw was hidden under the cap.",
+        "solution": "Turn off the isolation valve, prise off the cap, replace the rubber washer, grease the spindle. It took 20 minutes.",
+        "created": "2026-11-18T11:32:06",
+        "updated": "2026-11-18T11:32:06",
+        "completed_on": "2026-11-15"
+      }
+    ]
+  }
+}

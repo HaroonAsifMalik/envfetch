@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Automatic safety backups made when the web UI saves (they contain the same secrets as your project files)
+.backups/
+projects/.backups/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Keep your REAL project files out of a public repo. The two files in projects/ are examples only.
+# Either point EnvFetch at a private folder (ENVFETCH_DATA_DIR / --data-dir) or uncomment:
+# projects/*.json
