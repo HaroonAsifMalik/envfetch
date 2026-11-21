@@ -111,6 +111,8 @@ export function shape(doc) {
     const full = { ...blankTask(), ...task };
     if (!Array.isArray(full.steps)) full.steps = [];
     if (!Array.isArray(full.links)) full.links = [];
+    if (!Array.isArray(full.services)) full.services = [];
+    full.services = full.services.map((s) => (s && typeof s === 'object' ? s : { key: String(s), value: '' }));
     full.steps = full.steps.map((s) => (isObj(s) ? { text: String(s.text ?? ''), done: !!s.done } : { text: String(s), done: false }));
     if (!STATUSES.includes(full.status)) full.status = 'todo';
     if (!(full.priority in PRIORITY_RANK)) full.priority = 'medium';
@@ -153,6 +155,23 @@ export async function createProject(name, description, workspace = 'office') {
   return res.name;
 }
 
+export async function deleteProject(name) {
+  await api(`/projects/${name}`, { method: 'DELETE' });
+  delete state.docs[name];
+  delete state.revs[name];
+  rerender();
+}
+
+export async function renameProject(name, newName) {
+  const res = await api(`/projects/${name}/rename`, { method: 'POST', body: { name: newName } });
+  delete state.docs[name];
+  delete state.revs[name];
+  state.docs[res.name] = shape(res.doc);
+  state.revs[res.name] = res.rev;
+  rerender();
+  return res.name;
+}
+
 export async function importLegacy(name) {
   const res = await api(`/projects/${name}/import-legacy`, { method: 'POST', body: {} });
   state.docs[name] = shape(res.doc);
@@ -182,7 +201,7 @@ export const isHttp = (value) => /^https?:\/\/\S+$/i.test(String(value));
 export function blankTask(defaults = {}) {
   return {
     id: '', title: '', status: 'todo', priority: 'medium', category: 'feature', due: '', remind_at: '',
-    notes: '', links: [], steps: [], impact: '', challenges: '', solution: '',
+    notes: '', links: [], steps: [], services: [], impact: '', challenges: '', solution: '',
     created: '', updated: '', completed_on: '', ...defaults,
   };
 }
@@ -334,6 +353,10 @@ export function parseQuick(input) {
     const due = parseDay(d);
     if (!due) return m;
     out.due = due;
+    return sp;
+  });
+  text = text.replace(/(^|\s):(todo|doing|blocked|review|done)\b/i, (m, sp, s) => {
+    out.status = s.toLowerCase();
     return sp;
   });
   out.title = text.replace(/\s+/g, ' ').trim();

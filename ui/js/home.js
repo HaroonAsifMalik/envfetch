@@ -1,4 +1,4 @@
-// Home: what needs you today in the current workspace (Office or Personal).
+// Home: high-level view of the current workspace.
 import { h, icon, avatar, envColor, todayStr, ymd, toast } from './lib.js';
 import {
   state, allTasks, dueState, remindDue, projectNames, envNames, update, wsOf, WS_META, PRIORITY_RANK,
@@ -34,14 +34,6 @@ function reminderActions(project, task) {
     h('button', { class: 'chip-btn quiet', onClick: () => update(project, (d) => { const t = d.project.tasks.find((x) => x.id === task.id); t.dismissed = t.remind_at; }, { silent: true }) }, 'Dismiss'));
 }
 
-function panel(title, ico, items, empty, { lead = false } = {}) {
-  return h('section', { class: 'panel' + (lead ? ' lead' : '') },
-    h('header', {}, icon(ico), h('h3', {}, title), items.length ? h('span', { class: 'count' }, items.length) : null),
-    items.length
-      ? items.map(({ project, task }) => h('div', {}, taskRow(project, task, { showProject: true }), remindDue(task) ? reminderActions(project, task) : null))
-      : h('p', { class: 'muted panel-empty' }, empty));
-}
-
 const fact = (value, label, tone) => h('div', { class: 'fact' + (value && tone ? ' ' + tone : '') }, h('b', {}, value), h('span', {}, label));
 
 export function homeView() {
@@ -57,7 +49,7 @@ export function homeView() {
       h('span', { class: 'ws-badge' }, icon(meta.icon)),
       h('h1', {}, ws === 'office' ? 'Nothing at the office yet' : 'Your personal space is empty'),
       h('p', {}, ws === 'office'
-        ? 'Add a work project to keep its environments, links, commands and tasks together.'
+        ? 'Add a work project to keep its environments, commands and tasks together.'
         : 'Add a project for anything outside work: a move, a trip, health, money, a course.'),
       h('button', { class: 'btn primary', onClick: () => document.dispatchEvent(new CustomEvent('envfetch:new-project')) }, icon('plus'), 'New project'));
   }
@@ -65,30 +57,29 @@ export function homeView() {
   const needs = open.filter(({ task }) => dueState(task) === 'overdue' || dueState(task) === 'today' || remindDue(task) || task.status === 'blocked');
   const score = ({ task }) => (dueState(task) === 'overdue' ? 0 : remindDue(task) ? 1 : dueState(task) === 'today' ? 2 : 3);
   needs.sort((a, b) => score(a) - score(b) || PRIORITY_RANK[a.task.priority] - PRIORITY_RANK[b.task.priority]);
-  const doing = open.filter(({ task }) => task.status === 'doing');
-  const weekAhead = new Date(); weekAhead.setDate(weekAhead.getDate() + 7);
-  const upcoming = open.filter(({ task }) => task.due && task.due > today && task.due <= ymd(weekAhead)).sort((a, b) => a.task.due.localeCompare(b.task.due));
   const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
   const doneWeek = everything.filter(({ task }) => task.status === 'done' && task.completed_on >= ymd(weekAgo));
+  const doing = open.filter(({ task }) => task.status === 'doing');
   const overdueCount = open.filter(({ task }) => dueState(task) === 'overdue').length;
   const todayCount = open.filter(({ task }) => dueState(task) === 'today').length;
   const dateText = new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
-  const headline = needs.length ? `${needs.length} thing${needs.length > 1 ? 's need' : ' needs'} you` : 'You are all caught up';
+  const headline = needs.length ? `${needs.length} thing${needs.length > 1 ? 's need' : ' needs'} you` : 'All caught up';
 
   return h('div', { class: 'home' },
     h('header', { class: 'hero' },
-      h('div', { class: 'grow' }, h('p', { class: 'hello' }, `${greeting()}, it is ${dateText}`), h('h1', {}, headline)),
+      h('div', { class: 'grow' }, h('p', { class: 'hello' }, `${greeting()} · ${dateText}`), h('h1', {}, headline)),
       h('button', { class: 'btn', onClick: openStandup, title: 'Write today\'s update (S)' }, icon('sparkle'), 'Write my update')),
-    quickAdd(null, { projects: names }),
     h('div', { class: 'facts' },
-      fact(overdueCount, 'overdue', 'bad'), fact(todayCount, 'due today', 'warn'), fact(doing.length, 'in progress'), fact(doneWeek.length, 'finished this week', 'good')),
-    h('div', { class: 'grid-2' },
-      h('div', { class: 'stack' },
-        panel('Needs you', 'alert', needs, 'Nothing is overdue, due today, blocked or reminding you.', { lead: true }),
-        panel('Coming up this week', 'clock', upcoming, 'Nothing due in the next 7 days.')),
-      h('div', { class: 'stack' },
-        panel('In progress', 'bolt', doing, 'Nothing in progress. Pick something from a board.'),
-        panel('Finished this week', 'trophy', doneWeek.slice(0, 6), 'Finished tasks show up here.'))),
+      fact(overdueCount, 'overdue', 'bad'),
+      fact(todayCount, 'due today', 'warn'),
+      fact(doing.length, 'in progress'),
+      fact(doneWeek.length, 'done this week', 'good')),
+    quickAdd(null, { projects: names }),
+    needs.length ? h('section', { class: 'panel lead' },
+      h('header', {}, icon('alert'), h('h3', {}, 'Needs you'), h('span', { class: 'count' }, needs.length)),
+      needs.map(({ project, task }) => h('div', {},
+        taskRow(project, task, { showProject: true }),
+        remindDue(task) ? reminderActions(project, task) : null))) : null,
     h('h2', { class: 'section-h' }, ws === 'office' ? 'Your projects' : 'Your lists'),
     h('div', { class: 'grid-auto' }, names.map((name) => projectCard(name))));
 }
@@ -101,7 +92,7 @@ function projectCard(name) {
   const doing = open.filter((t) => t.status === 'doing').length;
   const envs = wsOf(doc) === 'office' ? envNames(doc) : [];
   return h('a', { class: 'proj-card', href: `#/p/${name}` },
-    h('div', { class: 'row' }, avatar(name, true), h('div', { class: 'grow' }, h('h4', {}, name), h('div', { class: 'faint' }, `${open.length} open, ${p.tasks.length - open.length} done`))),
+    h('div', { class: 'row' }, avatar(name, true), h('div', { class: 'grow' }, h('h4', {}, name), h('div', { class: 'faint' }, `${open.length} open · ${p.tasks.length - open.length} done`))),
     h('p', {}, p.description || 'No description'),
     h('div', { class: 'proj-meta' },
       overdue ? h('span', { class: 'chip overdue' }, `${overdue} overdue`) : null,

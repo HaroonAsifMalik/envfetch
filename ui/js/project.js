@@ -1,15 +1,15 @@
 // A single project: header, tabs, and the Overview tab.
-import { h, icon, iconBtn, avatar, envColor, copyText, emptyState, friendlyDate } from './lib.js';
-import { state, update, envNames, sortTasks, dueState, taskWriteup, wsOf, WS_META } from './store.js';
+import { h, icon, iconBtn, avatar, envColor, copyText, emptyState, friendlyDate, toast } from './lib.js';
+import { state, update, envNames, sortTasks, dueState, taskWriteup, wsOf, WS_META, deleteProject, renameProject } from './store.js';
+import { openModal, closeModal, confirmDialog } from './lib.js';
 import { tasksTab, taskRow, openTaskModal } from './tasks.js';
 import { envsTab } from './envs.js';
-import { linksTab, commandsTab, notesTab } from './misc.js';
+import { commandsTab, notesTab } from './misc.js';
 
 export const TABS = [
   ['overview', 'Overview', 'home'],
   ['tasks', 'Tasks', 'board'],
   ['env', 'Environments', 'layers'],
-  ['links', 'Links', 'link'],
   ['commands', 'Commands', 'terminal'],
   ['notes', 'Notes', 'note'],
 ];
@@ -29,21 +29,54 @@ export function projectView(name, tab) {
   const counts = {
     tasks: open.length,
     env: envNames(doc).length,
-    links: p.links.length,
     commands: Object.keys(p.commands).length,
     notes: p.notes.length,
+  };
+
+  const openProjectMenu = () => {
+    const rename = async () => {
+      const input = h('input', { placeholder: name, value: name, autofocus: true, autocomplete: 'off', spellcheck: 'false', 'aria-label': 'New project name' });
+      const hint = h('div', { class: 'hint' });
+      const submit = async () => {
+        const val = input.value.trim().toLowerCase();
+        if (!val || val === name) return closeModal();
+        if (!/^[a-z0-9][a-z0-9_-]{0,63}$/.test(val)) { hint.textContent = 'Use letters, numbers, - or _ only'; return; }
+        try {
+          closeModal(true);
+          const newName = await renameProject(name, val);
+          location.hash = `#/p/${newName}`;
+        } catch (err) { toast(err.message, 'error', 3500); }
+      };
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+      openModal([
+        h('div', { class: 'm-body' }, h('b', { class: 'dlg-title' }, 'Rename project'),
+          h('div', { class: 'field' }, h('label', {}, 'New name'), input, hint)),
+        h('div', { class: 'm-foot' }, h('span', { class: 'spacer' }),
+          h('button', { class: 'btn', onClick: () => closeModal() }, 'Cancel'),
+          h('button', { class: 'btn primary', onClick: submit }, 'Rename')),
+      ], { size: 'narrow' });
+    };
+    const del = async () => {
+      if (!(await confirmDialog({ title: `Delete "${name}"?`, message: 'All tasks, environments and notes will be permanently removed.', confirmLabel: 'Delete project' }))) return;
+      try { await deleteProject(name); location.hash = '#/'; } catch (err) { toast(err.message, 'error', 3500); }
+    };
+    const menu = h('div', { class: 'proj-menu' },
+      h('button', { class: 'menu-item', onClick: () => { closeModal(true); rename(); } }, icon('edit'), 'Rename project'),
+      h('button', { class: 'menu-item danger', onClick: () => { closeModal(true); del(); } }, icon('trash'), 'Delete project'));
+    openModal([menu], { size: 'narrow' });
   };
 
   const header = h('div', { class: 'phead' },
     avatar(name, true),
     h('div', { class: 'grow' }, h('h1', {}, name, h('span', { class: 'ws-tag' }, icon(WS_META[wsOf(doc)].icon), WS_META[wsOf(doc)].label)), h('div', { class: 'muted' }, p.description || 'No description yet')),
+    iconBtn('more', 'Project settings', openProjectMenu),
     h('button', { class: 'btn primary', onClick: () => openTaskModal(name, null) }, icon('plus'), 'New task'));
 
   const tabs = h('nav', { class: 'tabs' }, tabList.map(([key, label, ico]) => h('a', { class: 'tab' + (key === tab ? ' active' : ''), href: `#/p/${name}/${key}` },
     icon(ico), label,
     counts[key] ? h('span', { class: 'count', style: key === 'tasks' && overdue ? { background: 'color-mix(in srgb, var(--blocked) 25%, transparent)', color: 'var(--blocked)' } : null }, counts[key]) : null)));
 
-  const content = { overview: () => overviewTab(name), tasks: () => tasksTab(name), env: () => envsTab(name), links: () => linksTab(name), commands: () => commandsTab(name), notes: () => notesTab(name) }[tab]();
+  const content = { overview: () => overviewTab(name), tasks: () => tasksTab(name), env: () => envsTab(name), commands: () => commandsTab(name), notes: () => notesTab(name) }[tab]();
   return h('div', {}, header, tabs, content);
 }
 
@@ -86,14 +119,10 @@ function overviewTab(name) {
             h('p', {}, t.impact || t.solution))))
           : emptyState('🏆', 'Your playbook starts here', 'When you finish a task, add the impact and solution. They collect here — great for interviews and client pitches.'))),
     h('div', { class: 'grid-2' },
-      h('div', { class: 'card' },
-        wsOf(doc) === 'office' || envNames(doc).length ? h('div', {},
-          h('div', { class: 'card-h' }, icon('layers'), h('h3', {}, 'Environments')),
-          envNames(doc).length
-            ? h('div', { class: 'row', style: { flexWrap: 'wrap' } }, envNames(doc).map((env) => h('a', { class: 'chip env', style: { background: envColor(env), padding: '4px 12px', textDecoration: 'none' }, href: `#/p/${name}/env`, onClick: () => { state.ui.env[name] = env; } }, env)))
-            : h('span', { class: 'muted' }, 'None yet')) : null,
-        !p.links.length && wsOf(doc) === 'personal' ? h('div', {}, h('div', { class: 'card-h' }, icon('link'), h('h3', {}, 'Quick links')), h('span', { class: 'muted' }, 'Add links on the Links tab: bookings, forms, accounts.')) : null,
-        p.links.length ? h('div', { style: { marginTop: '16px' } }, h('div', { class: 'card-h' }, icon('link'), h('h3', {}, 'Quick links')),
-          h('div', { class: 'row', style: { flexWrap: 'wrap' } }, p.links.slice(0, 6).map((l) => h('a', { class: 'btn sm', href: l.url, target: '_blank', rel: 'noopener noreferrer' }, icon('external'), l.title)))) : null),
+      wsOf(doc) === 'office' || envNames(doc).length ? h('div', { class: 'card' },
+        h('div', { class: 'card-h' }, icon('layers'), h('h3', {}, 'Environments')),
+        envNames(doc).length
+          ? h('div', { class: 'row', style: { flexWrap: 'wrap' } }, envNames(doc).map((env) => h('a', { class: 'chip env', style: { background: envColor(env), padding: '4px 12px', textDecoration: 'none' }, href: `#/p/${name}/env`, onClick: () => { state.ui.env[name] = env; } }, env)))
+          : h('span', { class: 'muted' }, 'None yet')) : null,
       h('div', { class: 'card' }, h('div', { class: 'card-h' }, icon('edit'), h('h3', {}, 'Description')), descInput)));
 }

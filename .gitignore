@@ -12,6 +12,6 @@ projects/.backups/
 .idea/
 .vscode/
 
-# Keep your REAL project files out of a public repo. The two files in projects/ are examples only.
-# Either point EnvFetch at a private folder (ENVFETCH_DATA_DIR / --data-dir) or uncomment:
-# projects/*.json
+# Project data files contain credentials — never commit them.
+# Use ENVFETCH_DATA_DIR or --data-dir to point at a private folder instead.
+projects/*.json

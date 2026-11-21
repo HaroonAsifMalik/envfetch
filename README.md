@@ -1,10 +1,8 @@
 # ⚡ EnvFetch
 
-**One place for everything about every project you work on:** environment variables, links, commands, notes, and tasks, with the steps you took and the impact you had.
+**One place for everything about every project you work on:** environment variables, commands, notes, and tasks, with the steps you took and the impact you had.
 
 No database. No `pip install`. No build step. Your data stays in plain JSON files you own.
-
-![Home dashboard](docs/home.png)
 
 ## Why
 
@@ -25,35 +23,30 @@ Requires Python 3.8+. Nothing else. (The CLI works exactly as before; see [CLI](
 ## What you get
 
 ### 🧭 Two workspaces: Office and Personal
-Switch at the top of the sidebar (or press `W`). **Office** is for work projects (environments, links, commands, tasks). **Personal** is for everything else (a move, health, money, a course) with life-friendly categories and no environment clutter. Each workspace has its own colour, its own home page and its own standup, and the other one shows a badge when something there needs you. Opening a project from search switches workspace for you.
-
-![Personal workspace](docs/personal.png)
+Switch at the top of the sidebar (or press `W`). **Office** is for work projects (environments, commands, tasks). **Personal** is for everything else (a move, health, money, a course) with life-friendly categories and no environment clutter. Each workspace has its own colour, its own home page and its own standup, and the other one shows a badge when something there needs you. Opening a project from search switches workspace for you.
 
 ### 🏠 Home: everything that needs you today
-Overdue, due today, blocked, and reminders that have fired, all on one page. Capture a task in one line:
+Overdue, due today, blocked, and reminders that have fired, all on one page. Capture a task in one line without picking a project manually — the chip auto-selects one, or type `@project-name` anywhere in the text to target a specific project:
 
 ```
 Upgrade DB to PG16 !high #chore @friday ~12h
+Rotate Redis password @shop-api :doing
 ```
 
-`!low|medium|high|urgent` sets priority, `#word` sets the category, `@today`, `@tomorrow`, `@fri`, `@+3d` or `@2026-12-01` sets the due date, and `~30m`, `~12h`, `~2d` sets a reminder that long from now.
+`!low|medium|high|urgent` sets priority, `#word` sets the category, `@today|@tomorrow|@fri|@+3d|@2026-12-01` sets the due date, `~30m|~12h|~2d` sets a reminder, and `:todo|:doing|:blocked|:review|:done` sets the initial status.
 
 ### ⏰ "Remind me 12 hours after I deploy"
 Every task has reminder presets (1 hour, 4 hours, 12 hours, 2 days, tomorrow 9am, or type your own like `6h`) with a live countdown. Due reminders pop up as a notice, show a count in the browser tab title, and sit on Home with *Snooze* and *Dismiss*. From the terminal, start the clock right after a deploy:
 
 ```bash
-python envfetch.py -p task-master --remind t-004 --remind-in 12h
+python envfetch.py -p shop-api --remind t-004 --remind-in 12h
 ```
 
 ### 📝 Write my update (press `S`)
 Generates a **daily standup** (yesterday or since Friday, today, blockers) or a **weekly update** (done with impact, in progress, coming up, blockers) from your tasks, ready to paste into chat.
 
-![Standup](docs/standup.png)
-
 ### 🔁 "You have done something like this before"
 While you type a new task title, EnvFetch looks through your finished tasks and shows similar ones with their solution, challenges and steps. One click reuses the steps.
-
-![Similar past tasks and reminder presets](docs/similar.png)
 
 ### ✅ Tasks that remember how you did them
 A board (drag cards between columns) or a list, per project. Each task has:
@@ -64,50 +57,45 @@ A board (drag cards between columns) or a list, per project. Each task has:
 | **Priority, category, due date** | with overdue / due-today highlighting |
 | **Reminder** | "remind me tomorrow 9am" (snooze or dismiss from Home) |
 | **Steps** | a checklist; paste a whole list and it splits into steps |
-| **Notes & links** | context, PR, ticket, dashboard |
+| **Services & dependencies** | key-value pairs (DB, Redis, AWS…) pulled from your stored envs, with one-click copy of all as `KEY=VALUE` lines |
+| **Notes** | context, PRs, tickets |
 | **Write-up** | **Impact**, **Challenges**, **Solution**: the reusable playbook |
 
-![Task board](docs/board.png)
-
-Finished tasks with an impact collect under **Wins & learnings** on each project, with a one-click *Copy all as Markdown*. It's ready-made material for interviews, client pitches and your portfolio.
-
-![Task write-up](docs/task-writeup.png)
+Finished tasks with an impact collect under **Wins & learnings** on each project, with a one-click *Copy all as Markdown*.
 
 ### 🔐 Environments, safely
 Switch `local / dev / staging / prod`. Secrets are **masked by default** (anything that looks like a key, token, password, or a URL with credentials). Reveal one for 20 seconds, copy it, or copy a whole service or environment as a `.env`. Production gets a red warning banner. Edit values inline.
 
 **Compare** any two environments side by side: what's missing, what differs, what matches.
 
-![Environments](docs/environments.png)
-
 ### 🔎 `⌘K` finds anything
-One search across projects, tasks (including their write-ups), service and variable **names**, links, commands and notes. Secret values are never indexed or shown in search.
+One search across projects, tasks (including their write-ups), service and variable **names**, commands and notes. Secret values are never indexed or shown in search.
 
 ### Also
-- **Links**, plus URLs already stored in your environments, shown but never duplicated
 - **Commands**: click to copy
-- **Notes**
+- **Notes** per project
+- Rename or delete a project at any time from the project header
 - Light and dark themes (light by default), works on a phone-width screen, keyboard shortcuts (press `?`)
 - Edits made in the terminal show up in the UI when you switch back to it
 
 ## Your data
 
-One file per project in `projects/`, for example `projects/task-master.json`:
+One file per project in `projects/`, for example `projects/shop-api.json`:
 
 ```jsonc
 {
   "project": {
-    "description": "TaskMaster Project Services",
+    "description": "E-commerce API",
     "workspace": "office",
     "commands": { "migrate": "python manage.py migrate" },
     "notes": ["Redis must be running for Celery tasks."],
-    "links": [{ "title": "Grafana", "url": "https://grafana.example.com" }],
     "tasks": [
       {
-        "id": "t-001", "title": "Speed up the project list endpoint",
+        "id": "t-001", "title": "Speed up the product list endpoint",
         "status": "done", "priority": "high", "category": "improvement",
         "due": "", "remind_at": "",
         "steps": [{ "text": "Fix N+1 with annotate(Count)", "done": true }],
+        "services": [{ "key": "DATABASE_URL", "value": "postgresql://..." }],
         "impact": "Cut load time from 9s to 1.4s",
         "challenges": "select_related made it worse at first",
         "solution": "Annotate the count, add a composite index, cache page 1",
@@ -122,10 +110,8 @@ One file per project in `projects/`, for example `projects/task-master.json`:
 
 `workspace` is `"office"` or `"personal"`; files without it count as office. Every top-level key other than `project` is an environment, and each environment holds services (`db`, `redis`, `aws`, `urls`…) of `KEY: value` pairs. You can edit the JSON by hand any time, and the UI and CLI always agree because they share the same code.
 
-**Upgrading from the old format?** If a project still has `pending_tasks`, the Tasks tab shows a banner: *Import as tasks*. Nothing is lost, and the old `--pending_tasks` command still works.
-
 ### Keep your secrets out of public GitHub
-The two files in `projects/` are **examples**. For real work, keep your data in a **private** folder or repo:
+`projects/*.json` is git-ignored by default — your credentials will never be committed accidentally. For real work you can also keep your data in a fully separate private folder:
 
 ```bash
 export ENVFETCH_DATA_DIR=~/private/envfetch-data     # add to your shell profile
@@ -133,33 +119,33 @@ export ENVFETCH_DATA_DIR=~/private/envfetch-data     # add to your shell profile
 python envfetch.py --serve --data-dir ~/private/envfetch-data
 ```
 
-Safety net: every save is atomic, and a rolling backup (max one per 5 minutes, last 10 kept) goes to `.backups/`, which is git-ignored.
+Safety net: every save is atomic, and a rolling backup (max one per 5 minutes, last 10 kept) goes to `projects/.backups/`, which is git-ignored.
 
 ## CLI
 
 All the original commands still work:
 
 ```bash
-python envfetch.py -p task-master -e dev -s db        # get variables
-python envfetch.py -p task-master -e dev --list       # list services
-python envfetch.py -p task-master --diff dev prod     # compare environments
-python envfetch.py -p task-master --commands          # project commands
-python envfetch.py -p task-master --notes             # project notes
+python envfetch.py -p shop-api -e dev -s db        # get variables
+python envfetch.py -p shop-api -e dev --list       # list services
+python envfetch.py -p shop-api --diff dev prod     # compare environments
+python envfetch.py -p shop-api --commands          # project commands
+python envfetch.py -p shop-api --notes             # project notes
 python envfetch.py --create-project blog              # new office project
 python envfetch.py --create-project moving --workspace personal   # new personal project
 ```
 
-New task commands:
+Task commands:
 
 ```bash
-python envfetch.py -p task-master --tasks                          # open tasks
-python envfetch.py -p task-master --tasks --status blocked
-python envfetch.py -p task-master --add-task "Rotate Redis password" --category chore --priority urgent --due-date 2026-11-20
-python envfetch.py -p task-master --done t-004                     # mark done
-python envfetch.py --add-task "Check error rate" -p task-master --remind-in 12h   # with a reminder
-python envfetch.py -p task-master --remind t-004 --remind-in 90m   # start a reminder clock now
-python envfetch.py --due                                           # what needs me now? (all projects)
-python envfetch.py --due --workspace personal                      # only personal
+python envfetch.py -p shop-api --tasks                          # open tasks
+python envfetch.py -p shop-api --tasks --status blocked
+python envfetch.py -p shop-api --add-task "Rotate Redis password" --category chore --priority urgent --due-date 2026-11-20
+python envfetch.py -p shop-api --done t-004                     # mark done
+python envfetch.py --add-task "Check error rate" -p shop-api --remind-in 12h   # with a reminder
+python envfetch.py -p shop-api --remind t-004 --remind-in 90m   # start a reminder clock now
+python envfetch.py --due                                         # what needs me now? (all projects)
+python envfetch.py --due --workspace personal                    # only personal
 ```
 
 ### Reminders on macOS

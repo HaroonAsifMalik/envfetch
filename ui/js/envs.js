@@ -140,7 +140,7 @@ function viewRow(project, env, service, key, value, serviceShown) {
     h('div', { class: 'acts' },
       sensitive ? iconBtn(shown ? 'eyeOff' : 'eye', shown ? 'Hide' : 'Reveal for 20s', () => toggleReveal(rowId(project, env, service, key))) : null,
       isHttp(text) ? h('a', { class: 'icon-btn', href: text, target: '_blank', rel: 'noopener noreferrer', title: 'Open link' }, icon('external')) : null,
-      iconBtn('copy', 'Copy value', () => copyText(text, 'Value copied')),
+      iconBtn('copy', 'Copy value', () => copyText(text, `Copied ${key}`)),
       iconBtn('edit', 'Edit', () => { state.ui.editing = { ...(state.ui.editing || {}), [rowId(project, env, service, key)]: true }; rerender(); }),
       iconBtn('trash', 'Delete', () => update(project, (d) => { delete d[env][service][key]; }), 'danger')));
 }

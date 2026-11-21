@@ -197,6 +197,14 @@ def diff_envs(project: str, env1: str, env2: str):
             print(f"\nDifferent values in '{service}'")
 
 
+def delete_project(name):
+    """Delete a project file (with backup)."""
+    path = project_file(name)
+    if path.exists():
+        _backup(path)
+        path.unlink()
+
+
 def create_project_template(name: str, workspace: str = "office"):
     name = name.lower()
     if not is_valid_name(name):
