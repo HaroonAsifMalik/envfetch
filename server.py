@@ -98,6 +98,9 @@ class Handler(BaseHTTPRequestHandler):
     def do_PUT(self):
         self._dispatch("PUT")
 
+    def do_DELETE(self):
+        self._dispatch("DELETE")
+
     def do_POST(self):
         self._dispatch("POST")
 
@@ -156,15 +159,15 @@ class Handler(BaseHTTPRequestHandler):
                 local.write_project(name, doc)
                 return self._json(201, {"name": name, "doc": doc, "rev": local.file_rev(name)})
 
-        match = re.fullmatch(r"/api/projects/([a-z0-9][a-z0-9_-]*)(/import-legacy)?", path)
+        match = re.fullmatch(r"/api/projects/([a-z0-9][a-z0-9_-]*)(/import-legacy|/rename)?", path)
         if not match:
             return self._error(404, "Unknown endpoint")
-        name, import_legacy = match.group(1), bool(match.group(2))
+        name, sub = match.group(1), match.group(2) or ""
 
-        if method == "GET" and not import_legacy:
+        if method == "GET" and not sub:
             return self._json(200, {"doc": local.read_project(name), "rev": local.file_rev(name)})
 
-        if method == "PUT" and not import_legacy:
+        if method == "PUT" and not sub:
             body = self._read_json()
             doc = body.get("doc")
             if not isinstance(doc, dict) or not isinstance(doc.get("project", {}), dict):
@@ -177,7 +180,29 @@ class Handler(BaseHTTPRequestHandler):
                 local.write_project(name, doc)
                 return self._json(200, {"rev": local.file_rev(name)})
 
-        if method == "POST" and import_legacy:
+        if method == "DELETE" and not sub:
+            with WRITE_LOCK:
+                if not local.project_file(name).exists():
+                    return self._error(404, "Project not found")
+                local.delete_project(name)
+                return self._json(200, {"deleted": name})
+
+        if method == "POST" and sub == "/rename":
+            body = self._read_json()
+            new_name = str(body.get("name", "")).strip().lower()
+            if not local.is_valid_name(new_name):
+                return self._error(400, "Use letters, numbers, '-' or '_' (max 64 chars)")
+            with WRITE_LOCK:
+                if not local.project_file(name).exists():
+                    return self._error(404, "Project not found")
+                if local.project_file(new_name).exists():
+                    return self._error(409, "A project with that name already exists")
+                doc = local.read_project(name)
+                local.write_project(new_name, doc)
+                local.delete_project(name)
+                return self._json(200, {"name": new_name, "doc": doc, "rev": local.file_rev(new_name)})
+
+        if method == "POST" and sub == "/import-legacy":
             with WRITE_LOCK:
                 doc = local.read_project(name)
                 imported = task_lib.import_legacy(doc)

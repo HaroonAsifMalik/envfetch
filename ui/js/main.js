@@ -78,7 +78,11 @@ function newProjectDialog() {
 function newTaskDialog() {
   const route = parseRoute();
   const names = projectNames(state.ui.ws);
-  if (route.page === 'project' && state.docs[route.name]) return openTaskModal(route.name, null);
+  if (route.page === 'project' && state.docs[route.name]) {
+    const quickInput = document.getElementById('quick-input');
+    if (quickInput) { quickInput.focus(); return; }
+    return openTaskModal(route.name, null);
+  }
   if (!names.length) return newProjectDialog();
   const select = h('select', { value: state.ui.lastProject && names.includes(state.ui.lastProject) ? state.ui.lastProject : names[0], autofocus: true, 'aria-label': 'Project' }, names.map((n) => h('option', { value: n }, n)));
   openModal([

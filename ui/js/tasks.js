@@ -5,7 +5,7 @@ import {
 import {
   state, saveUi, update, rerender, importLegacy, addTask, applyStatus, blankTask, dueState, remindDue,
   stepProgress, sortTasks, taskWriteup, parseQuick, categoriesFor, wsOf, WS_META,
-  remindAtFrom, tomorrowAt, untilLabel,
+  remindAtFrom, tomorrowAt, untilLabel, envNames, isSensitive, displayValue,
   STATUSES, STATUS_LABEL, STATUS_COLOR, PRIORITIES,
 } from './store.js';
 import { similarPanel } from './similar.js';
@@ -118,7 +118,8 @@ export function tasksTab(project) {
     h('button', { class: 'btn primary', onClick: () => openTaskModal(project, null) }, icon('plus'), 'New task')));
 
   if (!all.length) {
-    root.append(emptyState('✨', 'No tasks yet', 'Type one into the box above, or press N. Add !high, #category or @friday to set details as you type.'));
+    root.append(emptyState('✨', 'No tasks yet', 'Type a task above, or press N. Add !high, #category or @friday to set details as you type.',
+      h('button', { class: 'btn primary', onClick: () => openTaskModal(project, null) }, icon('plus'), 'Add your first task')));
   } else if (!filtered.length) {
     root.append(emptyState('🔎', 'Nothing matches those filters', 'Clear the filter box or pick "All categories".'));
   } else {
@@ -171,35 +172,64 @@ function list(project, tasks) {
     if (!items.length) continue;
     if (status === 'done') items.sort((a, b) => (b.completed_on || '').localeCompare(a.completed_on || ''));
     root.append(h('div', { class: 'group-h', style: { '--c': STATUS_COLOR[status] } }, h('span', { class: 'dot' }), STATUS_LABEL[status], h('span', { class: 'faint' }, items.length)),
-      items.map((task) => taskRow(project, task)));
+      ...items.map((task) => taskRow(project, task)));
   }
   return root;
 }
 
 // ---------- quick add ------------------------------------------------------- //
 export function quickAdd(project, { projects } = {}) {
+  let projIdx = projects ? Math.max(0, projects.indexOf(state.ui.lastProject)) : 0;
+
+  const projChip = projects ? (() => {
+    const nameSpan = h('span', {}, projects[projIdx] || '');
+    const btn = h('button', { class: 'proj-chip', type: 'button', title: projects.length > 1 ? 'Click to switch project' : '' },
+      nameSpan, projects.length > 1 ? icon('chevron') : null);
+    btn.addEventListener('click', () => {
+      if (projects.length < 2) return;
+      projIdx = (projIdx + 1) % projects.length;
+      state.ui.lastProject = projects[projIdx];
+      saveUi();
+      nameSpan.textContent = projects[projIdx];
+    });
+    return btn;
+  })() : null;
+
   const input = h('input', { id: 'quick-input', placeholder: WS_META[state.ui.ws].taskPlaceholder, autocomplete: 'off', 'aria-label': 'New task' });
-  const select = projects
-    ? h('select', { id: 'quick-project', title: 'Project', 'aria-label': 'Project', value: state.ui.lastProject && projects.includes(state.ui.lastProject) ? state.ui.lastProject : projects[0] },
-      projects.map((p) => h('option', { value: p }, p)))
-    : null;
 
   const submit = () => {
-    const parsed = parseQuick(input.value);
+    let text = input.value;
+    let targetFromText = null;
+    if (projects) {
+      text = text.replace(/(^|\s)@([\w-]+)(?=\s|$)/g, (m, sp, candidate) => {
+        if (!targetFromText && projects.includes(candidate)) { targetFromText = candidate; return sp; }
+        return m;
+      });
+    }
+    const parsed = parseQuick(text);
     if (!parsed.title) return;
-    const target = project || (select && select.value);
+    const target = project || targetFromText || (projects && projects[projIdx]);
     if (!target) return toast('Create a project first', 'warn');
-    if (select) { state.ui.lastProject = target; saveUi(); }
+    if (targetFromText) {
+      projIdx = projects.indexOf(targetFromText);
+      if (projChip) projChip.querySelector('span').textContent = targetFromText;
+    }
+    state.ui.lastProject = target;
+    saveUi();
     update(target, (doc) => { addTask(doc, parsed); });
     input.value = '';
   };
   input.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); submit(); } });
 
   return h('div', {},
-    h('div', { class: 'quick' }, icon('plus'), input, select, h('button', { class: 'btn primary', onClick: submit }, 'Add')),
-    h('div', { class: 'quick-hint' }, 'While typing: ',
-      h('code', {}, '!high'), ' sets priority, ', h('code', {}, '#bug'), ' category, ',
-      h('code', {}, '@fri'), ' or ', h('code', {}, '@+3d'), ' a due date, ', h('code', {}, '~12h'), ' a reminder 12 hours from now.'));
+    h('div', { class: 'quick' }, icon('plus'), input, projChip, h('button', { class: 'btn primary', onClick: submit }, 'Add')),
+    h('div', { class: 'quick-hint' }, 'Shortcuts: ',
+      h('code', {}, '!high'), ' priority · ',
+      h('code', {}, '#bug'), ' category · ',
+      h('code', {}, '@fri'), '/', h('code', {}, '@+3d'), ' due date · ',
+      h('code', {}, '~12h'), ' reminder · ',
+      h('code', {}, ':doing'), '/', h('code', {}, ':blocked'), ' status',
+      projects ? [' · ', h('code', {}, '@project-name'), ' to pick project'] : null));
 }
 
 // ---------- task editor modal ----------------------------------------------- //
@@ -295,6 +325,75 @@ export function openTaskModal(project, id, defaults = {}) {
   };
   renderSteps();
 
+  // Services & dependencies ----------------------------------------------- //
+  const servicesBox = h('div', { class: 'svc-rows' });
+  const renderServices = () => {
+    servicesBox.replaceChildren(...task.services.map((svc, i) => {
+      const keyEl = h('input', { class: 'svc-key', value: svc.key, placeholder: 'name', 'aria-label': 'Service name',
+        onInput: (e) => { svc.key = e.target.value; touch(); } });
+      const valEl = h('input', { class: 'svc-val', value: svc.value, placeholder: 'value / connection string', 'aria-label': 'Service value',
+        onInput: (e) => { svc.value = e.target.value; touch(); } });
+      return h('div', { class: 'svc-row' },
+        keyEl, h('span', { class: 'svc-eq' }, '='), valEl,
+        iconBtn('x', 'Remove', () => { task.services.splice(i, 1); touch(); renderServices(); }));
+    }));
+  };
+  renderServices();
+
+  const addService = (k, v = '') => {
+    if (!k) return;
+    const existing = task.services.find((s) => s.key === k);
+    if (existing) { existing.value = v || existing.value; touch(); renderServices(); return; }
+    task.services.push({ key: k, value: v });
+    touch();
+    renderServices();
+  };
+
+  // Env browser — flatten all project env vars into a browsable list
+  const envVars = [];
+  const docEnv = state.docs[project];
+  for (const env of envNames(docEnv)) {
+    for (const [svc, vars] of Object.entries(docEnv[env] || {})) {
+      if (!vars || typeof vars !== 'object' || Array.isArray(vars)) continue;
+      for (const [k, v] of Object.entries(vars)) {
+        envVars.push({ env, svc, key: k, value: displayValue(v), sensitive: isSensitive(k, displayValue(v)) });
+      }
+    }
+  }
+
+  let envBrowserOpen = false;
+  const envBrowserPanel = h('div', { class: 'env-browser hidden' });
+
+  const renderEnvBrowser = () => {
+    if (!envBrowserOpen) { envBrowserPanel.classList.add('hidden'); return; }
+    envBrowserPanel.classList.remove('hidden');
+    const groups = {};
+    for (const v of envVars) { (groups[v.env] = groups[v.env] || []).push(v); }
+    envBrowserPanel.replaceChildren(...Object.entries(groups).map(([env, vars]) =>
+      h('div', { class: 'envb-group' },
+        h('div', { class: 'envb-label' }, env),
+        ...vars.map((v) => {
+          const alreadyAdded = task.services.some((s) => s.key === v.key);
+          return h('div', { class: 'envb-row' + (alreadyAdded ? ' added' : '') },
+            h('span', { class: 'envb-key' }, v.key),
+            h('span', { class: 'envb-val' }, v.sensitive ? '••••••' : (v.value.length > 40 ? v.value.slice(0, 40) + '…' : v.value)),
+            alreadyAdded
+              ? h('span', { class: 'envb-check' }, '✓')
+              : h('button', { class: 'btn sm', type: 'button', onClick: () => { addService(v.key, v.value); renderServices(); renderEnvBrowser(); } }, icon('plus')));
+        }))));
+  };
+
+  const svcKeyInput = h('input', { placeholder: 'KEY', 'aria-label': 'Service name', class: 'svc-key' });
+  const svcValInput = h('input', { placeholder: 'value or connection string', 'aria-label': 'Service value', class: 'svc-val' });
+  const manualAdd = () => {
+    const k = svcKeyInput.value.trim();
+    if (!k) { svcKeyInput.focus(); return; }
+    addService(k, svcValInput.value.trim());
+    svcKeyInput.value = ''; svcValInput.value = '';
+    svcKeyInput.focus();
+  };
+  [svcKeyInput, svcValInput].forEach((el) => el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); manualAdd(); } }));
+
   // Write-up -------------------------------------------------------------- //
   const writeupHint = h('span', {});
   const syncWriteupHint = () => { writeupHint.textContent = task.status === 'done' ? 'You finished this — capture it while it is fresh.' : 'Fill this in when you finish. It becomes your reusable playbook.'; };
@@ -343,7 +442,20 @@ export function openTaskModal(project, id, defaults = {}) {
     h('div', { class: 'field' }, h('label', {}, 'Steps'), stepsBox,
       h('button', { class: 'btn sm', style: { marginTop: '8px' }, onClick: () => { task.steps.push({ text: '', done: false }); touch(); renderSteps(task.steps.length - 1); } }, icon('plus'), 'Add step'),
       h('div', { class: 'hint' }, 'Tip: paste a whole checklist and it splits into steps.')),
-    field('Links', links),
+    h('div', { class: 'field' },
+      h('div', { class: 'section-t' }, icon('server'), 'Services & dependencies',
+        task.services.length ? h('button', { class: 'btn ghost sm', style: { marginLeft: 'auto' }, type: 'button',
+          onClick: () => copyText(task.services.map((s) => s.value ? `${s.key}=${s.value}` : s.key).join('\n'), 'Services copied') },
+          icon('copy'), 'Copy all') : null),
+      servicesBox,
+      h('div', { class: 'svc-add-row' },
+        svcKeyInput, h('span', { class: 'svc-eq' }, '='), svcValInput,
+        h('button', { class: 'btn sm', type: 'button', onClick: manualAdd }, icon('plus'), 'Add'),
+        envVars.length ? h('button', { class: 'btn sm', type: 'button',
+          onClick: () => { envBrowserOpen = !envBrowserOpen; renderEnvBrowser(); } },
+          icon('layers'), 'From envs') : null),
+      envBrowserPanel,
+      h('div', { class: 'hint' }, 'Add manually or pick from stored environments. Copy all outputs KEY=VALUE lines.')),
     h('div', { class: 'section-t' }, icon('trophy'), 'Write-up', writeupHint),
     area('impact', 'Impact', 'What changed? Who or what did it affect? Numbers help: "cut report load from 9s to 2s".'),
     area('challenges', 'Challenges', 'What was tricky or surprising?'),
