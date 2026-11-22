@@ -5,6 +5,12 @@ import subprocess
 import sys
 import urllib.request
 
+try:
+    import certifi as _certifi
+    _SSL_CAFILE = _certifi.where()
+except ImportError:
+    _SSL_CAFILE = None
+
 from sources import local
 from sources import tasks as task_lib
 from sources.local import (
@@ -178,9 +184,7 @@ def notify_ntfy(title, message):
             headers={"Title": title},
             method="POST",
         )
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
+        ctx = ssl.create_default_context(cafile=_SSL_CAFILE)
         urllib.request.urlopen(req, timeout=5, context=ctx)
         return True
     except Exception:
