@@ -1,6 +1,9 @@
 import argparse
+import os
+import ssl
 import subprocess
 import sys
+import urllib.request
 
 from sources import local
 from sources import tasks as task_lib
@@ -164,6 +167,31 @@ def notify_macos(title, message):
     return True
 
 
+def notify_ntfy(title, message):
+    topic = os.environ.get("NTFY_TOPIC", "").strip()
+    if not topic:
+        return False
+    try:
+        req = urllib.request.Request(
+            f"https://ntfy.sh/{topic}",
+            data=message.encode(),
+            headers={"Title": title},
+            method="POST",
+        )
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        urllib.request.urlopen(req, timeout=5, context=ctx)
+        return True
+    except Exception:
+        return False
+
+
+def notify(title, message):
+    notify_macos(title, message)
+    notify_ntfy(title, message)
+
+
 def show_due(project=None, notify=False, workspace=None):
     names = [project.lower()] if project else local.list_projects()
     docs = {}
@@ -192,7 +220,7 @@ def show_due(project=None, notify=False, workspace=None):
         for name, task, reasons in items:
             remind = task.get("remind_at")
             if "reminder" in reasons and task.get("notified") != remind:
-                notify_macos("EnvFetch reminder", f"{task['title']} ({name})")
+                notify("EnvFetch reminder", f"{task['title']} ({name})")
                 task["notified"] = remind  # only ping once per reminder
                 touched.add(name)
         for name in touched:
