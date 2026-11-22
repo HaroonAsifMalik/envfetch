@@ -174,14 +174,17 @@ def notify_macos(title, message):
 
 
 def notify_ntfy(title, message):
+    import urllib.parse
     topic = os.environ.get("NTFY_TOPIC", "").strip()
     if not topic:
         return False
     try:
+        safe_topic = urllib.parse.quote(topic, safe="")
+        safe_title = title.encode("ascii", errors="replace").decode("ascii")
         req = urllib.request.Request(
-            f"https://ntfy.sh/{topic}",
+            f"https://ntfy.sh/{safe_topic}",
             data=message.encode(),
-            headers={"Title": title},
+            headers={"Title": safe_title},
             method="POST",
         )
         ctx = ssl.create_default_context(cafile=_SSL_CAFILE)
@@ -196,7 +199,7 @@ def notify(title, message):
     notify_ntfy(title, message)
 
 
-def show_due(project=None, notify=False, workspace=None):
+def show_due(project=None, send_notify=False, workspace=None):
     names = [project.lower()] if project else local.list_projects()
     docs = {}
     for name in names:
@@ -219,7 +222,7 @@ def show_due(project=None, notify=False, workspace=None):
         tags = ", ".join(LABELS[r] for r in reasons)
         print(f"  {format_task(task, with_project=name)}\n      {tags}")
 
-    if notify:
+    if send_notify:
         touched = set()
         for name, task, reasons in items:
             remind = task.get("remind_at")
@@ -297,7 +300,7 @@ def main():
 
     # ✅ What needs attention (works without -p)
     if args.due:
-        show_due(args.project, notify=args.notify, workspace=args.workspace)
+        show_due(args.project, send_notify=args.notify, workspace=args.workspace)
         return
 
     if not args.project:

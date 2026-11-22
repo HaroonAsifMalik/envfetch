@@ -33,6 +33,7 @@ _CU_PRIORITY = {"urgent": 1, "high": 2, "medium": 3, "low": 4}
 
 
 def _clickup_push(title, notes, priority, due_date):
+    import datetime
     token = os.environ.get("CLICKUP_TOKEN", "").strip()
     list_id = os.environ.get("CLICKUP_LIST_ID", "").strip()
     assignee = os.environ.get("CLICKUP_ASSIGNEE_ID", "").strip()
@@ -40,19 +41,18 @@ def _clickup_push(title, notes, priority, due_date):
     if not token or not list_id:
         return None, "CLICKUP_TOKEN and CLICKUP_LIST_ID env vars are not set"
     payload = {"name": title, "status": status}
+    notes = (notes or "").strip()
     if notes:
         payload["description"] = notes
     if priority:
         payload["priority"] = _CU_PRIORITY.get(priority, 3)
+    due_date = (due_date or "").strip()
     if due_date:
-        import datetime
         try:
             ts = int(datetime.datetime.strptime(due_date, "%Y-%m-%d").timestamp() * 1000)
             payload["due_date"] = ts
         except ValueError:
             pass
-    if assignee:
-        payload["assignees"] = [int(assignee)]
     ctx = ssl.create_default_context(cafile=_SSL_CAFILE)
     req = urllib.request.Request(
         f"https://api.clickup.com/api/v2/list/{list_id}/task",
@@ -61,9 +61,13 @@ def _clickup_push(title, notes, priority, due_date):
         method="POST",
     )
     try:
+        if assignee:
+            payload["assignees"] = [int(assignee)]
         with urllib.request.urlopen(req, timeout=10, context=ctx) as resp:
             data = json.loads(resp.read())
             return data.get("url") or f"https://app.clickup.com/t/{data.get('id', '')}", None
+    except ValueError:
+        return None, f"CLICKUP_ASSIGNEE_ID must be a numeric user ID, got: {assignee!r}"
     except urllib.error.HTTPError as exc:
         body = exc.read().decode(errors="replace")
         return None, f"ClickUp API error {exc.code}: {body[:200]}"
@@ -215,10 +219,10 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/clickup/push" and method == "POST":
             body = self._read_json()
             url, err = _clickup_push(
-                str(body.get("title", "")).strip(),
-                str(body.get("notes", "")).strip(),
-                str(body.get("priority", "medium")),
-                str(body.get("due", "")),
+                str(body.get("title") or "").strip(),
+                str(body.get("notes") or "").strip(),
+                str(body.get("priority") or "medium"),
+                str(body.get("due") or ""),
             )
             if err:
                 return self._error(502, err)

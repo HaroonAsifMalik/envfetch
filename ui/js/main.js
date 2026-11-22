@@ -155,6 +155,7 @@ function topbar(route) {
 
 // ---------- browser push notifications -------------------------------------- //
 function requestNotifPermission() {
+  // Must be called from a user gesture — browsers silently deny auto-requests.
   if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
 }
 
@@ -164,23 +165,25 @@ function pushNotif(title, body) {
 }
 
 // Fire at 17:40 every day while the page is open.
+// Uses recursive setTimeout so DST clock changes don't drift the schedule.
 function scheduleDailyDigest() {
-  const now = new Date();
-  const next = new Date(now);
-  next.setHours(17, 40, 0, 0);
-  if (next <= now) next.setDate(next.getDate() + 1);
-  setTimeout(() => {
-    fireDigest();
-    setInterval(fireDigest, 86400000); // repeat every 24h
-  }, next - now);
+  function scheduleNext() {
+    const now = new Date();
+    const next = new Date(now);
+    next.setHours(17, 40, 0, 0);
+    if (next <= now) next.setDate(next.getDate() + 1);
+    setTimeout(() => { fireDigest(); scheduleNext(); }, next - now);
+  }
+  scheduleNext();
 }
 
 function fireDigest() {
-  const tasks = allTasks('office').filter(({ task }) => task.status !== 'done' && (dueState(task) === 'today' || dueState(task) === 'overdue' || remindDue(task)));
+  const ws = state.ui.ws || 'office';
+  const tasks = allTasks(ws).filter(({ task }) => task.status !== 'done' && (dueState(task) === 'today' || dueState(task) === 'overdue' || remindDue(task)));
   if (!tasks.length) return;
   const titles = tasks.slice(0, 3).map(({ task }) => `• ${task.title}`).join('\n');
   const extra = tasks.length > 3 ? `\n+${tasks.length - 3} more` : '';
-  pushNotif(`EnvFetch — ${tasks.length} office task${tasks.length > 1 ? 's' : ''} need attention`, titles + extra);
+  pushNotif(`EnvFetch — ${tasks.length} task${tasks.length > 1 ? 's' : ''} need attention`, titles + extra);
 }
 
 // ---------- reminders: toast once per reminder, and show a count in the tab title ---------- //
@@ -268,7 +271,8 @@ async function boot() {
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
   setInterval(refresh, 60000); // keep reminders and due dates fresh
   setInterval(announceReminders, 20000); // a reminder can come due while a dialog keeps refresh paused
-  requestNotifPermission();
+  // Request permission on first user interaction (browsers block auto-requests).
+  document.addEventListener('click', () => requestNotifPermission(), { once: true });
   scheduleDailyDigest();
   render();
 }
