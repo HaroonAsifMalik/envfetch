@@ -15,11 +15,64 @@ import json
 import mimetypes
 import os
 import re
+import ssl
 import threading
+import urllib.request
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlparse
+
+try:
+    import certifi as _certifi
+    _SSL_CAFILE = _certifi.where()
+except ImportError:
+    _SSL_CAFILE = None
+
+_CU_PRIORITY = {"urgent": 1, "high": 2, "medium": 3, "low": 4}
+
+
+def _clickup_push(title, notes, priority, due_date):
+    import datetime
+    token = os.environ.get("CLICKUP_TOKEN", "").strip()
+    list_id = os.environ.get("CLICKUP_LIST_ID", "").strip()
+    assignee = os.environ.get("CLICKUP_ASSIGNEE_ID", "").strip()
+    status = os.environ.get("CLICKUP_STATUS", "ready for dev").strip()
+    if not token or not list_id:
+        return None, "CLICKUP_TOKEN and CLICKUP_LIST_ID env vars are not set"
+    payload = {"name": title, "status": status}
+    notes = (notes or "").strip()
+    if notes:
+        payload["description"] = notes
+    if priority:
+        payload["priority"] = _CU_PRIORITY.get(priority, 3)
+    due_date = (due_date or "").strip()
+    if due_date:
+        try:
+            ts = int(datetime.datetime.strptime(due_date, "%Y-%m-%d").timestamp() * 1000)
+            payload["due_date"] = ts
+        except ValueError:
+            pass
+    ctx = ssl.create_default_context(cafile=_SSL_CAFILE)
+    req = urllib.request.Request(
+        f"https://api.clickup.com/api/v2/list/{list_id}/task",
+        data=json.dumps(payload).encode(),
+        headers={"Authorization": token, "Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        if assignee:
+            payload["assignees"] = [int(assignee)]
+        with urllib.request.urlopen(req, timeout=10, context=ctx) as resp:
+            data = json.loads(resp.read())
+            return data.get("url") or f"https://app.clickup.com/t/{data.get('id', '')}", None
+    except ValueError:
+        return None, f"CLICKUP_ASSIGNEE_ID must be a numeric user ID, got: {assignee!r}"
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode(errors="replace")
+        return None, f"ClickUp API error {exc.code}: {body[:200]}"
+    except Exception as exc:
+        return None, str(exc)
 
 from sources import local
 from sources import tasks as task_lib
@@ -158,6 +211,22 @@ class Handler(BaseHTTPRequestHandler):
                 doc = local.build_template(name, str(body.get("description", "")).strip(), workspace)
                 local.write_project(name, doc)
                 return self._json(201, {"name": name, "doc": doc, "rev": local.file_rev(name)})
+
+        if path == "/api/clickup/config" and method == "GET":
+            configured = bool(os.environ.get("CLICKUP_TOKEN") and os.environ.get("CLICKUP_LIST_ID"))
+            return self._json(200, {"configured": configured})
+
+        if path == "/api/clickup/push" and method == "POST":
+            body = self._read_json()
+            url, err = _clickup_push(
+                str(body.get("title") or "").strip(),
+                str(body.get("notes") or "").strip(),
+                str(body.get("priority") or "medium"),
+                str(body.get("due") or ""),
+            )
+            if err:
+                return self._error(502, err)
+            return self._json(200, {"url": url})
 
         match = re.fullmatch(r"/api/projects/([a-z0-9][a-z0-9_-]*)(/import-legacy|/rename)?", path)
         if not match:

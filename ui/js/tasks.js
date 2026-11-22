@@ -6,7 +6,7 @@ import {
   state, saveUi, update, rerender, importLegacy, addTask, applyStatus, blankTask, dueState, remindDue,
   stepProgress, sortTasks, taskWriteup, parseQuick, categoriesFor, wsOf, WS_META,
   remindAtFrom, tomorrowAt, untilLabel, envNames, isSensitive, displayValue,
-  STATUSES, STATUS_LABEL, STATUS_COLOR, PRIORITIES,
+  STATUSES, STATUS_LABEL, STATUS_COLOR, PRIORITIES, api,
 } from './store.js';
 import { similarPanel } from './similar.js';
 
@@ -466,9 +466,29 @@ export function openTaskModal(project, id, defaults = {}) {
     existing && existing.created ? h('span', { class: 'faint' }, 'created ' + ago(existing.created)) : null,
     h('span', { class: 'spacer' }), iconBtn('x', 'Close', () => closeModal()));
 
+  const cuBtn = h('button', { class: 'btn', title: 'Create in ClickUp', style: { display: 'none' } }, icon('external'), 'ClickUp');
+  api('/clickup/config').then(({ configured }) => {
+    if (configured) cuBtn.style.display = '';
+  }).catch(() => {});
+  cuBtn.addEventListener('click', async () => {
+    cuBtn.disabled = true;
+    cuBtn.textContent = 'Sending…';
+    try {
+      const { url } = await api('/clickup/push', { method: 'POST', body: { title: task.title, notes: task.notes, priority: task.priority, due: task.due } });
+      toast('Sent to ClickUp', 'ok', 3000);
+      if (url) window.open(url, '_blank');
+    } catch (err) {
+      toast(err.message || 'ClickUp error', 'error', 4000);
+    } finally {
+      cuBtn.disabled = false;
+      cuBtn.replaceChildren(icon('external'), document.createTextNode(' ClickUp'));
+    }
+  });
+
   const foot = h('div', { class: 'm-foot' },
     existing ? h('button', { class: 'btn danger', onClick: remove }, icon('trash'), 'Delete') : null,
     existing ? h('button', { class: 'btn', title: 'Copy as Markdown', onClick: () => copyText(taskWriteup(project, { ...existing, ...task }), 'Write-up copied as Markdown') }, icon('copy'), 'Copy write-up') : null,
+    existing ? cuBtn : null,
     h('span', { class: 'spacer' }), h('span', { class: 'faint' }, h('kbd', {}, '⌘'), ' ', h('kbd', {}, '↵')), ' to save',
     h('button', { class: 'btn', onClick: () => closeModal() }, 'Cancel'),
     h('button', { class: 'btn primary', onClick: save }, icon('check'), existing ? 'Save' : 'Create task'));

@@ -1,6 +1,15 @@
 import argparse
+import os
+import ssl
 import subprocess
 import sys
+import urllib.request
+
+try:
+    import certifi as _certifi
+    _SSL_CAFILE = _certifi.where()
+except ImportError:
+    _SSL_CAFILE = None
 
 from sources import local
 from sources import tasks as task_lib
@@ -164,7 +173,33 @@ def notify_macos(title, message):
     return True
 
 
-def show_due(project=None, notify=False, workspace=None):
+def notify_ntfy(title, message):
+    import urllib.parse
+    topic = os.environ.get("NTFY_TOPIC", "").strip()
+    if not topic:
+        return False
+    try:
+        safe_topic = urllib.parse.quote(topic, safe="")
+        safe_title = title.encode("ascii", errors="replace").decode("ascii")
+        req = urllib.request.Request(
+            f"https://ntfy.sh/{safe_topic}",
+            data=message.encode(),
+            headers={"Title": safe_title},
+            method="POST",
+        )
+        ctx = ssl.create_default_context(cafile=_SSL_CAFILE)
+        urllib.request.urlopen(req, timeout=5, context=ctx)
+        return True
+    except Exception:
+        return False
+
+
+def notify(title, message):
+    notify_macos(title, message)
+    notify_ntfy(title, message)
+
+
+def show_due(project=None, send_notify=False, workspace=None):
     names = [project.lower()] if project else local.list_projects()
     docs = {}
     for name in names:
@@ -187,12 +222,12 @@ def show_due(project=None, notify=False, workspace=None):
         tags = ", ".join(LABELS[r] for r in reasons)
         print(f"  {format_task(task, with_project=name)}\n      {tags}")
 
-    if notify:
+    if send_notify:
         touched = set()
         for name, task, reasons in items:
             remind = task.get("remind_at")
             if "reminder" in reasons and task.get("notified") != remind:
-                notify_macos("EnvFetch reminder", f"{task['title']} ({name})")
+                notify("EnvFetch reminder", f"{task['title']} ({name})")
                 task["notified"] = remind  # only ping once per reminder
                 touched.add(name)
         for name in touched:
@@ -265,7 +300,7 @@ def main():
 
     # ✅ What needs attention (works without -p)
     if args.due:
-        show_due(args.project, notify=args.notify, workspace=args.workspace)
+        show_due(args.project, send_notify=args.notify, workspace=args.workspace)
         return
 
     if not args.project:
