@@ -153,6 +153,36 @@ function topbar(route) {
     h('button', { class: 'search-btn', onClick: () => openPalette(newProjectDialog) }, icon('search'), h('span', { class: 'grow' }, 'Search everything'), h('kbd', {}, '⌘K')));
 }
 
+// ---------- browser push notifications -------------------------------------- //
+function requestNotifPermission() {
+  if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+}
+
+function pushNotif(title, body) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  new Notification(title, { body, icon: '/favicon.ico' });
+}
+
+// Fire at 17:40 every day while the page is open.
+function scheduleDailyDigest() {
+  const now = new Date();
+  const next = new Date(now);
+  next.setHours(17, 40, 0, 0);
+  if (next <= now) next.setDate(next.getDate() + 1);
+  setTimeout(() => {
+    fireDigest();
+    setInterval(fireDigest, 86400000); // repeat every 24h
+  }, next - now);
+}
+
+function fireDigest() {
+  const tasks = allTasks('office').filter(({ task }) => task.status !== 'done' && (dueState(task) === 'today' || dueState(task) === 'overdue' || remindDue(task)));
+  if (!tasks.length) return;
+  const titles = tasks.slice(0, 3).map(({ task }) => `• ${task.title}`).join('\n');
+  const extra = tasks.length > 3 ? `\n+${tasks.length - 3} more` : '';
+  pushNotif(`EnvFetch — ${tasks.length} office task${tasks.length > 1 ? 's' : ''} need attention`, titles + extra);
+}
+
 // ---------- reminders: toast once per reminder, and show a count in the tab title ---------- //
 const announced = new Set();
 let baseTitle = 'EnvFetch';
@@ -161,7 +191,10 @@ function announceReminders() {
   const due = allTasks().filter(({ task }) => remindDue(task));
   const fresh = due.filter(({ project, task }) => !announced.has(`${project}/${task.id}/${task.remind_at}`));
   fresh.forEach(({ project, task }) => announced.add(`${project}/${task.id}/${task.remind_at}`));
-  fresh.slice(0, 3).forEach(({ project, task }) => toast(`Reminder: ${task.title} (${project})`, 'warn', 8000));
+  fresh.slice(0, 3).forEach(({ project, task }) => {
+    toast(`Reminder: ${task.title} (${project})`, 'warn', 8000);
+    pushNotif('EnvFetch reminder', `${task.title} (${project})`);
+  });
   if (fresh.length > 3) toast(`and ${fresh.length - 3} more reminders`, 'warn', 8000);
   document.title = (due.length ? `(${due.length}) ` : '') + baseTitle;
 }
@@ -235,6 +268,8 @@ async function boot() {
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
   setInterval(refresh, 60000); // keep reminders and due dates fresh
   setInterval(announceReminders, 20000); // a reminder can come due while a dialog keeps refresh paused
+  requestNotifPermission();
+  scheduleDailyDigest();
   render();
 }
 
